@@ -4,6 +4,7 @@ import argparse
 import json
 import os
 import re
+import secrets
 import shutil
 import signal
 import sqlite3
@@ -11,12 +12,37 @@ import subprocess
 import sys
 import tempfile
 import threading
+import time
 from contextlib import closing
 from datetime import datetime, timezone
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import parse_qs, urlparse
 
+
+from capability_probe import ProbeManager
+
+
+CODEX_SANDBOX = "workspace-write"
+DSH_PROFILE = "headless"
+CAPABILITY_TOKEN = secrets.token_urlsafe(32)
+CAPABILITY_PROBES = ProbeManager()
+CLI_CACHE_TTL_SECONDS = 300
+CLI_AVAILABILITY_LOCK = threading.Lock()
+CLI_AVAILABILITY_CACHE = None
+
+
+def cli_availability() -> dict:
+    """Cache discovery for display only; execution still resolves the actual CLI."""
+    global CLI_AVAILABILITY_CACHE
+    with CLI_AVAILABILITY_LOCK:
+        now = time.monotonic()
+        if CLI_AVAILABILITY_CACHE is None or now - CLI_AVAILABILITY_CACHE[0] >= CLI_CACHE_TTL_SECONDS:
+            CLI_AVAILABILITY_CACHE = (now, {
+                "codex_cli_available": resolve_codex_command() is not None,
+                "dsh_cli_available": resolve_dsh_command() is not None,
+            })
+        return dict(CLI_AVAILABILITY_CACHE[1])
 
 PROJECT_DIR = Path(__file__).resolve().parent
 DB_PATH = Path(os.environ.get("AGENT_BRIDGE_DB", PROJECT_DIR / "agent_bridge.db")).expanduser()
@@ -240,6 +266,21 @@ PAGE = r"""<!doctype html>
     .agent-model { color:#c5ccda;font-size:12px;margin-top:10px;overflow-wrap:anywhere; }
     .agent-role { color:var(--muted);font-size:11px;margin-top:5px; }
     .agent-seen { color:#778191;font-size:10px;margin-top:9px;padding-top:8px;border-top:1px solid #292e37; }
+    .agent-capabilities { margin-top:10px;padding-top:10px;border-top:1px solid var(--line); }
+    .cap-tags { display:flex;gap:5px;flex-wrap:wrap; }
+    .cap-tag { display:inline-block;border:1px solid #354052;border-radius:6px;padding:2px 6px;font-size:10px;color:#b7c5db;background:#202936; }
+    .cap-tag.passed { color:#a0dfbb;border-color:#355646;background:#1d3028; }
+    .cap-tag.failed { color:#f0b2ac;border-color:#62413f;background:#352424; }
+    .cap-tag.responded { color:#b6cef3; }
+    .cap-caption { margin-top:7px;color:var(--muted);font-size:10px;line-height:1.6;overflow-wrap:anywhere; }
+    .workbench-card { margin-top:14px; }
+    .workbench-card .avatar { background:#d1c1f0; }
+    .cap-button { margin-left:auto;flex:none;padding:5px 9px;border:1px solid #46546b;border-radius:7px;background:#263246;color:#d5e2f7;font-size:11px;cursor:pointer; }
+    .cap-button:hover:not(:disabled) { background:#34435c; }
+    .cap-button:disabled { opacity:.5;cursor:wait; }
+    .cap-result { padding:9px 0;border-top:1px solid var(--line); }
+    .cap-result summary { display:flex;align-items:center;justify-content:space-between;gap:6px;cursor:pointer;font-size:11px; }
+    .cap-result[open] summary { margin-bottom:7px; }
     .side-note { color:#788292;font-size:11px;line-height:1.6;padding:14px 8px; }
     main { width:100%;height:100vh;height:100dvh;min-width:0;min-height:0;overflow:hidden;display:grid;grid-template-rows:auto auto minmax(0,1fr) auto; }
     .topbar { min-height:68px;position:relative;z-index:2;border-bottom:1px solid var(--line);display:flex;align-items:center;justify-content:space-between;padding:12px clamp(18px,4vw,48px);gap:16px;background:rgba(16,18,22,.88);backdrop-filter:blur(12px); }
@@ -347,6 +388,12 @@ PAGE = r"""<!doctype html>
       <div class="brand"><div class="logo">A</div><div><div class="brand-name">Agent 工作台</div><div class="brand-sub">本机对话 · Codex 与 DeepSeek Harness</div></div></div>
       <div class="section-title"><span>Agents</span><span id="agent-count" class="count">读取中</span></div>
       <div id="agents"></div>
+      <article class="agent workbench-card">
+        <div class="agent-head"><div class="avatar">W</div><div><div class="agent-name">工作台环境</div><div class="agent-vendor">本机进程 · 实测能力</div></div><button class="cap-button" id="probe-capabilities" type="button">检测</button></div>
+        <div class="cap-caption">仅代表工作台进程，不代表上方 Agent 的沙箱权限。</div>
+        <div id="capability-results" class="agent-capabilities"></div>
+        <div id="capability-error" class="cap-caption" role="status"></div>
+      </article>
       <div class="side-note">这里显示已登记到 agent_bridge 的 Agent。最近活动时间反映桥接调用或工作台消息，不代表实时在线状态。</div>
     </aside>
     <main>
@@ -374,6 +421,7 @@ PAGE = r"""<!doctype html>
     </main>
   </div>
 <script>
+const capabilityToken = "__CAPABILITY_TOKEN__";
 const agentsNode = document.getElementById("agents");
 const messagesNode = document.getElementById("messages");
 const conversationNode = document.getElementById("conversation");
@@ -396,6 +444,12 @@ const mentionOptions = [
   {token:"@all", label:"所有 Agent", description:"同时发送给所有 Agent", prefixes:["all", "everyone", "所有", "全部"]}
 ];
 let selectedConversation = "default";
+const agentCards = new Map();
+let refreshVersion = 0;
+let refreshPending = false;
+let refreshPromise = null;
+let settingsVersion = 0;
+let capabilityVersion = 0;
 let initialized = false;
 let previousMessageIds = "";
 let pendingAgents = new Set();
@@ -423,19 +477,25 @@ function formatTime(value) {
 }
 
 async function getJson(path) {
-  const response = await fetch(path, {cache:"no-store"});
-  if (!response.ok) throw new Error("HTTP " + response.status + "：" + await response.text());
-  return response.json();
+  const controller = new AbortController();
+  const timeout = setTimeout(function() { controller.abort(); }, 10000);
+  try {
+    const response = await fetch(path, {cache:"no-store", signal:controller.signal});
+    if (!response.ok) throw new Error("HTTP " + response.status);
+    return await response.json();
+  } finally { clearTimeout(timeout); }
 }
 
 async function loadWorkspaceSettings() {
   const conversationId = selectedConversation;
+  const version = ++settingsVersion;
   try {
     const settings = await getJson("/api/settings?conversation_id=" + encodeURIComponent(conversationId));
-    if (conversationId !== selectedConversation) return;
+    if (conversationId !== selectedConversation || version !== settingsVersion) return;
     workspacePathInput.value = settings.working_directory;
     workspaceStatusNode.textContent = workspaceStatusText;
   } catch (error) {
+    if (conversationId !== selectedConversation || version !== settingsVersion) return;
     workspaceStatusNode.textContent = "读取工作目录设置失败：" + error.message;
   }
 }
@@ -443,6 +503,7 @@ async function loadWorkspaceSettings() {
 async function saveWorkspaceSettings() {
   if (workspaceSaving) return;
   const conversationId = selectedConversation;
+  const version = ++settingsVersion;
   workspaceSaving = true;
   saveWorkspaceButton.disabled = true;
   workspacePathInput.disabled = true;
@@ -455,7 +516,7 @@ async function saveWorkspaceSettings() {
     });
     const result = await response.json();
     if (!response.ok) throw new Error(result.error || "HTTP " + response.status);
-    if (conversationId === selectedConversation) {
+    if (conversationId === selectedConversation && version === settingsVersion) {
       workspacePathInput.value = result.working_directory;
       previousMessageIds = "";
       workspaceStatusNode.textContent = result.changed
@@ -464,7 +525,8 @@ async function saveWorkspaceSettings() {
     }
     await refreshAll();
   } catch (error) {
-    workspaceStatusNode.textContent = "应用失败：" + error.message;
+    if (conversationId === selectedConversation && version === settingsVersion)
+      workspaceStatusNode.textContent = "应用失败：" + error.message;
   } finally {
     workspaceSaving = false;
     await refreshAll();
@@ -472,10 +534,17 @@ async function saveWorkspaceSettings() {
 }
 
 function renderAgents(agents) {
-  agentsNode.replaceChildren();
+  const ids = new Set(agents.map(function(agent) { return agent.agent_id; }));
+  for (const [id, card] of agentCards) {
+    if (!ids.has(id)) { card.remove(); agentCards.delete(id); }
+  }
+  const empty = agentsNode.querySelector(".side-note");
+  if (empty) empty.remove();
   document.getElementById("agent-count").textContent = agents.length + " 个已登记";
   for (const agent of agents) {
-    const card = textElement("article", "agent");
+    let card = agentCards.get(agent.agent_id);
+    if (!card) {
+    card = textElement("article", "agent");
     const head = textElement("div", "agent-head");
     const avatar = textElement("div", "avatar" + (String(agent.agent_id).includes("deepseek") ? " deepseek" : ""), String(agent.name || "?").slice(0,1));
     const identity = textElement("div");
@@ -483,10 +552,29 @@ function renderAgents(agents) {
     identity.append(textElement("div", "agent-vendor", agent.vendor || "未知厂商"));
     head.append(avatar, identity);
     card.append(head);
+    const capabilitySlot = textElement("div", "agent-capabilities");
+    capabilitySlot.dataset.capabilityAgent = agent.agent_id;
+    capabilitySlot.append(textElement("span", "cap-tag", "配置读取中"));
+    card.append(capabilitySlot);
     card.append(textElement("div", "agent-model", agent.model || "未指定模型"));
     card.append(textElement("div", "agent-role", agent.role || ""));
     card.append(textElement("div", "agent-seen", "最近活动：" + formatTime(agent.last_seen)));
-    agentsNode.append(card);
+    agentCards.set(agent.agent_id, card);
+    }
+    const fields = {
+      ".agent-name": agent.name || agent.agent_id,
+      ".agent-vendor": agent.vendor || "未知厂商",
+      ".agent-model": agent.model || "未指定模型",
+      ".agent-role": agent.role || "",
+      ".agent-seen": "最近活动：" + formatTime(agent.last_seen),
+      ".avatar": String(agent.name || "?").slice(0,1)
+    };
+    for (const [selector, value] of Object.entries(fields)) {
+      const node = card.querySelector(selector);
+      if (node.textContent !== value) node.textContent = value;
+    }
+    const index = agents.indexOf(agent);
+    if (agentsNode.children[index] !== card) agentsNode.insertBefore(card, agentsNode.children[index] || null);
   }
   if (!agents.length) agentsNode.append(textElement("div", "side-note", "还没有登记 Agent。"));
 }
@@ -691,16 +779,91 @@ function renderMessages(messages) {
   initialized = true;
 }
 
-async function refreshAll() {
+async function refreshCapabilities(version = refreshVersion) {
+  const conversation = selectedConversation;
+  const requestVersion = ++capabilityVersion;
+  const data = await getJson("/api/capabilities?conversation_id=" + encodeURIComponent(conversation));
+  if (conversation !== selectedConversation || version !== refreshVersion || requestVersion !== capabilityVersion) return;
+  document.getElementById("capability-error").textContent = "";
+  const root = document.getElementById("capability-results");
+  for (const agent of data.agent_configuration) {
+    const card = agentCards.get(agent.id);
+    const slot = card && card.querySelector("[data-capability-agent]");
+    if (!slot) continue;
+    const slotSignature = JSON.stringify([agent.cli_found, agent.configuration]);
+    if (slot.dataset.signature === slotSignature) continue;
+    slot.dataset.signature = slotSignature;
+    slot.replaceChildren();
+    const tags = textElement("div", "cap-tags");
+    tags.append(textElement("span", "cap-tag " + (agent.cli_found ? "passed" : "failed"),
+      agent.cli_found ? "CLI 已找到" : "CLI 未找到"));
+    tags.append(textElement("span", "cap-tag", "沙箱能力未实测"));
+    slot.append(tags, textElement("div", "cap-caption", "启动配置 · " + agent.configuration));
+  }
+  document.getElementById("probe-capabilities").disabled = data.probe.state === "running";
+  document.getElementById("probe-capabilities").textContent = data.probe.state === "running" ? "检测中…" : "检测";
+  // Keep expanded diagnostics open across polling when results have not changed.
+  const signature = JSON.stringify(data.probe);
+  if (root.dataset.signature === signature) return;
+  root.dataset.signature = signature;
+  root.replaceChildren();
+  const stateLabels = {not_tested:"未检测", running:"检测中", completed:"检测完成", failed:"检测失败"};
+  root.append(textElement("div", "cap-caption", (stateLabels[data.probe.state] || data.probe.state)
+    + (data.probe.expired ? " · 结果已过期" : "")));
+  const directory = textElement("div", "cap-caption", data.probe.working_directory);
+  directory.title = data.probe.working_directory;
+  root.append(directory);
+  const labels = {workspace_write:"目录读写", git_read:"Git 本地读取", https:"HTTPS", git_remote_read:"远程仓库读取"};
+  const statuses = {passed:"通过", failed:"失败", responded:"收到 HTTP 响应", skipped:"跳过"};
+  for (const item of data.probe.results) {
+    const row = document.createElement("details");
+    row.className = "cap-result";
+    const summary = document.createElement("summary");
+    const label = item.name === "https" ? new URL(item.target).hostname : (labels[item.name] || item.name);
+    summary.append(textElement("span", "", label), textElement("span", "cap-tag " + item.status,
+      item.http_status ? "HTTP " + item.http_status : (statuses[item.status] || item.status)));
+    row.append(summary);
+    row.append(textElement("div", "cap-caption", "目标：" + item.target + "；来源：工作台进程实测；时间：" + formatTime(item.checked_at)
+      + "；耗时：" + item.elapsed_ms + "ms；方法：" + item.method + "；说明：" + item.detail));
+    root.append(row);
+  }
+}
+
+document.getElementById("probe-capabilities").addEventListener("click", async function() {
+  const conversation = selectedConversation;
+  const version = refreshVersion;
+  this.disabled = true;
+  try {
+    const response = await fetch("/api/capabilities/probe", {
+      method:"POST", headers:{"Content-Type":"application/json", "X-Capability-Token":capabilityToken},
+      body:JSON.stringify({conversation_id:conversation})
+    });
+    const data = await response.json();
+    if (!response.ok) throw new Error(data.error || "检测请求失败");
+    if (conversation === selectedConversation && version === refreshVersion) await refreshCapabilities(version);
+  } catch (error) {
+    if (conversation === selectedConversation && version === refreshVersion)
+      document.getElementById("capability-error").textContent = error.message;
+  } finally { this.disabled = false; }
+});
+
+async function refreshRound(version, conversation) {
   try {
     const results = await Promise.all([
       getJson("/api/agents"),
       getJson("/api/conversations"),
       getJson("/api/runs")
     ]);
+    if (version !== refreshVersion || conversation !== selectedConversation) return;
     renderAgents(results[0].agents);
     renderRecipients(results[0].agents, results[0].codex_cli_available, results[0].dsh_cli_available);
     renderConversations(results[1].conversations);
+    if (conversation !== selectedConversation) {
+      refreshVersion++;
+      refreshPending = true;
+      loadWorkspaceSettings();
+      return;
+    }
     const activeRuns = results[2].runs || [];
     stopAllButton.disabled = stopAllSubmitting || activeRuns.length === 0;
     stopAllButton.textContent = activeRuns.length ? "Stop (" + activeRuns.length + ")" : "Stop";
@@ -714,15 +877,41 @@ async function refreshAll() {
       delete workspaceStatusNode.dataset.busy;
       workspaceStatusNode.textContent = workspaceStatusText;
     }
-    const data = await getJson("/api/messages?conversation_id=" + encodeURIComponent(selectedConversation) + "&limit=500");
+    const data = await getJson("/api/messages?conversation_id=" + encodeURIComponent(conversation) + "&limit=500");
+    if (version !== refreshVersion || conversation !== selectedConversation) return;
     renderMessages(data.messages);
+    try {
+      await refreshCapabilities(version);
+    } catch (error) {
+      if (version === refreshVersion && conversation === selectedConversation)
+        document.getElementById("capability-error").textContent = error.message;
+    }
+    if (version !== refreshVersion || conversation !== selectedConversation) return;
     errorNode.style.display = "none";
     statusNode.textContent = "已更新 · " + new Date().toLocaleTimeString("zh-CN");
   } catch (error) {
+    if (version !== refreshVersion || conversation !== selectedConversation) return;
     errorNode.textContent = "无法读取桥接数据库：" + error.message;
     errorNode.style.display = "block";
     statusNode.textContent = "连接失败";
   }
+}
+
+function refreshAll(periodic = false) {
+  if (periodic && refreshPromise) return refreshPromise;
+  if (!periodic) refreshVersion++;
+  refreshPending = true;
+  if (!refreshPromise) {
+    refreshPromise = Promise.resolve().then(async function() {
+      try {
+        while (refreshPending) {
+          refreshPending = false;
+          await refreshRound(refreshVersion, selectedConversation);
+        }
+      } finally { refreshPromise = null; }
+    });
+  }
+  return refreshPromise;
 }
 
 async function requestStop(payload, button) {
@@ -877,7 +1066,7 @@ inputNode.addEventListener("keydown", function(event) {
 });
 loadWorkspaceSettings();
 refreshAll();
-setInterval(refreshAll, 3000);
+setInterval(function() { refreshAll(true); }, 3000);
 </script>
 </body>
 </html>"""
@@ -1408,14 +1597,14 @@ def run_codex(
             answer_path = Path(temporary_directory) / "codex-answer.txt"
             if thread_id:
                 command = [
-                    codex_command, "exec", "--sandbox", "workspace-write",
+                    codex_command, "exec", "--sandbox", CODEX_SANDBOX,
                     "--cd", str(working_directory), "resume",
                     "--json", "--skip-git-repo-check", "--output-last-message", str(answer_path),
                     thread_id, agent_prompt,
                 ]
             else:
                 command = [
-                    codex_command, "exec", "--sandbox", "workspace-write",
+                    codex_command, "exec", "--sandbox", CODEX_SANDBOX,
                     "--json", "--skip-git-repo-check",
                     "--cd", str(working_directory),
                     "--output-last-message", str(answer_path), agent_prompt,
@@ -1537,7 +1726,7 @@ def run_deepseek_harness(
             conversation_id, "deepseek-harness", user_message_id, prompt, working_directory
         )
         arguments = [
-            "--profile", "headless",
+            "--profile", DSH_PROFILE,
             "--patch", str(DSH_AUTH_PATCH),
             "--json",
         ]
@@ -1636,17 +1825,74 @@ class ChatHandler(BaseHTTPRequestHandler):
         body = json.dumps(data, ensure_ascii=False).encode("utf-8")
         self.send_bytes(status, "application/json; charset=utf-8", body)
 
+    def capability_host_allowed(self) -> bool:
+        port = self.server.server_port
+        return self.headers.get("Host") in {f"127.0.0.1:{port}", f"localhost:{port}"}
+
+    def capability_snapshot(self, conversation_id: str) -> dict:
+        available = cli_availability()
+        return {
+            "probe": CAPABILITY_PROBES.snapshot(resolve_working_directory(conversation_id)),
+            "agent_configuration": [
+                {"id": "codex", "name": "Codex", "configuration": f"--sandbox {CODEX_SANDBOX}",
+                 "cli_found": available["codex_cli_available"]},
+                {"id": "deepseek-harness", "name": "DeepSeek Harness", "configuration": f"--profile {DSH_PROFILE}; 未显式传入 sandbox 参数，其他策略未知",
+                 "cli_found": available["dsh_cli_available"]},
+            ],
+        }
+
+    def do_capability_probe(self) -> None:
+        host = self.headers.get("Host", "")
+        if (not self.capability_host_allowed()
+                or self.headers.get("Origin") != "http://" + host
+                or not secrets.compare_digest(self.headers.get("X-Capability-Token", ""), CAPABILITY_TOKEN)):
+            self.send_json(403, {"error": "Capability probe requires same-origin authorization."})
+            return
+        if self.headers.get_content_type() != "application/json":
+            self.send_json(415, {"error": "Expected application/json"})
+            return
+        try:
+            length = int(self.headers.get("Content-Length", "0"))
+            if not 0 < length <= 4096 or self.headers.get("Transfer-Encoding"):
+                raise ValueError("Invalid request length")
+            payload = json.loads(self.rfile.read(length).decode("utf-8"))
+            conversation_id = payload.get("conversation_id", "default") if isinstance(payload, dict) else None
+            if not isinstance(conversation_id, str) or not 0 < len(conversation_id) <= 200:
+                raise ValueError("Invalid conversation_id")
+            directory = resolve_working_directory(conversation_id)
+        except (ValueError, UnicodeError) as error:
+            self.send_json(400, {"error": str(error)})
+            return
+        except (sqlite3.Error, OSError):
+            self.send_json(503, {"error": "Working directory unavailable"})
+            return
+        try:
+            CAPABILITY_PROBES.start(directory)
+        except ValueError as error:
+            self.send_json(409, {"error": str(error)})
+            return
+        self.send_json(202, {"status": "accepted"})
+
     def do_GET(self) -> None:
         parsed = urlparse(self.path)
         try:
+            if parsed.path in {"/", "/api/capabilities"} and not self.capability_host_allowed():
+                self.send_json(403, {"error": "Invalid Host"})
+                return
+            if parsed.path == "/api/capabilities":
+                conversation_id = parse_qs(parsed.query).get("conversation_id", ["default"])[0]
+                if not 0 < len(conversation_id) <= 200:
+                    self.send_json(400, {"error": "Invalid conversation_id"})
+                    return
+                self.send_json(200, self.capability_snapshot(conversation_id))
+                return
             if parsed.path == "/":
-                self.send_bytes(200, "text/html; charset=utf-8", PAGE.encode("utf-8"))
+                self.send_bytes(200, "text/html; charset=utf-8", PAGE.replace("__CAPABILITY_TOKEN__", CAPABILITY_TOKEN).encode("utf-8"))
                 return
             if parsed.path == "/api/agents":
                 self.send_json(200, {
                     "agents": fetch_agents(),
-                    "codex_cli_available": resolve_codex_command() is not None,
-                    "dsh_cli_available": resolve_dsh_command() is not None,
+                    **cli_availability(),
                 })
                 return
             if parsed.path == "/api/conversations":
@@ -1683,11 +1929,14 @@ class ChatHandler(BaseHTTPRequestHandler):
                 })
                 return
             self.send_json(404, {"error": "Not found"})
-        except (sqlite3.Error, FileNotFoundError) as error:
+        except (sqlite3.Error, OSError) as error:
             self.send_json(503, {"error": str(error)})
 
     def do_POST(self) -> None:
         parsed = urlparse(self.path)
+        if parsed.path == "/api/capabilities/probe":
+            self.do_capability_probe()
+            return
         if parsed.path not in {"/api/messages", "/api/stop", "/api/settings"}:
             self.send_json(404, {"error": "Not found"})
             return
