@@ -1,0 +1,23 @@
+# Python environments and caches
+.venv/
+venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+
+# Local database and conversation state
+agent_bridge.db*
+sessions/
+session.json
+last_answer.txt
+
+# Credentials and local settings
+.env
+.env.*
+!.env.example
+.aws/
+
+# Temporary invocation checks
+Codex.txt
+deepseek-harness.txt
+write-probe-*.tmp
