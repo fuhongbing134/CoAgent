@@ -8,6 +8,7 @@ import shutil
 import signal
 import sqlite3
 import subprocess
+import sys
 import tempfile
 import threading
 from contextlib import closing
@@ -24,6 +25,27 @@ MAX_MESSAGES = 1000
 MAX_MESSAGE_LENGTH = 20_000
 AGENT_IDS = ("codex", "deepseek-harness")
 DSH_SESSION_KEY = "deepseek-harness-headless"
+
+
+def _env_positive_int(name: str, default: int) -> int:
+    """Read a positive-integer environment variable, warning and falling back on invalid input."""
+    raw = os.environ.get(name, "").strip()
+    if not raw:
+        return default
+    try:
+        value = int(raw)
+    except ValueError:
+        print(f"[警告] 环境变量 {name}={raw!r} 不是整数，使用默认值 {default}。", file=sys.stderr)
+        return default
+    if value < 1:
+        print(f"[警告] 环境变量 {name}={raw!r} 必须是正整数，使用默认值 {default}。", file=sys.stderr)
+        return default
+    return value
+
+
+# 上下文注入配置：仅控制「保留的正文」长度与条数，省略提示不占用这些上限。
+AGENT_CONTEXT_MAX_MESSAGES = _env_positive_int("AGENT_CONTEXT_MAX_MESSAGES", 30)
+AGENT_CONTEXT_MAX_MESSAGE_CHARS = _env_positive_int("AGENT_CONTEXT_MAX_MESSAGE_CHARS", 3000)
 MENTION_PATTERNS = {
     "codex": re.compile(r"(?<![A-Za-z0-9_@\\])@(?:codex|openai)(?![A-Za-z0-9_]|\.[A-Za-z])", re.IGNORECASE),
     "deepseek-harness": re.compile(
@@ -1284,6 +1306,22 @@ def touch_agent_last_seen(agent_id: str) -> None:
         connection.close()
 
 
+def truncate_head_tail(content: str, limit: int) -> str:
+    """Keep the head and tail of an over-long message and mark the omitted middle.
+
+    ``limit`` counts the kept body characters only; the omission note is added on top.
+    """
+    total = len(content)
+    head_len = limit // 2
+    tail_len = limit - head_len  # odd limit gives the tail one extra character
+    omitted = total - limit
+    return (
+        content[:head_len]
+        + f"\n…（中间省略 {omitted} 字符；原文共 {total} 字符）\n"
+        + content[-tail_len:]
+    )
+
+
 def build_agent_prompt(
     conversation_id: str,
     agent_id: str,
@@ -1301,8 +1339,8 @@ def build_agent_prompt(
                LEFT JOIN agents AS sender ON sender.agent_id = m.sender_id
                LEFT JOIN agents AS recipient ON recipient.agent_id = m.recipient_id
                WHERE m.conversation_id = ? AND m.id < ? AND m.status = 'completed'
-               ORDER BY m.id DESC LIMIT 30""",
-            (conversation_id, user_message_id),
+               ORDER BY m.id DESC LIMIT ?""",
+            (conversation_id, user_message_id, AGENT_CONTEXT_MAX_MESSAGES),
         ).fetchall()
         bridge_rows = connection.execute(
             """SELECT m.sender_id, COALESCE(sender.name, m.sender_id) AS sender_name,
@@ -1312,8 +1350,8 @@ def build_agent_prompt(
                LEFT JOIN agents AS sender ON sender.agent_id = m.sender_id
                LEFT JOIN agents AS recipient ON recipient.agent_id = m.recipient_id
                WHERE m.conversation_id = ?
-               ORDER BY m.id DESC LIMIT 30""",
-            (conversation_id,),
+               ORDER BY m.id DESC LIMIT ?""",
+            (conversation_id, AGENT_CONTEXT_MAX_MESSAGES),
         ).fetchall()
 
     history = [dict(row) for row in workbench_rows]
@@ -1326,12 +1364,12 @@ def build_agent_prompt(
                      and item["recipient_id"] in {agent_id, "all"}))
     ]
     history.sort(key=lambda item: (item["created_at"], item["source"], item["id"]))
-    history = history[-30:]
+    history = history[-AGENT_CONTEXT_MAX_MESSAGES:]
     transcript = []
     for item in history:
         content = item["content"]
-        if len(content) > 1500:
-            content = content[:1500] + "\n…（较早消息已截断）"
+        if len(content) > AGENT_CONTEXT_MAX_MESSAGE_CHARS:
+            content = truncate_head_tail(content, AGENT_CONTEXT_MAX_MESSAGE_CHARS)
         transcript.append(
             f"[{item['sender_name']} → {item['recipient_name']}]\n{content}"
         )
