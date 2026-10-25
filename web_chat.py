@@ -2,6 +2,7 @@
 
 import argparse
 import json
+import logging
 import os
 import re
 import secrets
@@ -21,6 +22,12 @@ from urllib.parse import parse_qs, urlparse
 
 
 from capability_probe import ProbeManager
+from collaboration_entry import route_message, entry_prompt, parse_entry_response
+from collaboration_batches import BatchStore
+from collaboration_lifecycle import LifecycleStore
+from collaboration_actions import ActionStore
+from collaboration_http import handle_action_request
+from collaboration_service import CollaborationService
 
 
 CODEX_SANDBOX = "workspace-write"
@@ -72,6 +79,8 @@ def _env_positive_int(name: str, default: int) -> int:
 # 上下文注入配置：仅控制「保留的正文」长度与条数，省略提示不占用这些上限。
 AGENT_CONTEXT_MAX_MESSAGES = _env_positive_int("AGENT_CONTEXT_MAX_MESSAGES", 30)
 AGENT_CONTEXT_MAX_MESSAGE_CHARS = _env_positive_int("AGENT_CONTEXT_MAX_MESSAGE_CHARS", 3000)
+AGENT_CODEX_TIMEOUT_SECONDS = _env_positive_int("AGENT_CODEX_TIMEOUT_SECONDS", 1200)
+AGENT_DEEPSEEK_TIMEOUT_SECONDS = _env_positive_int("AGENT_DEEPSEEK_TIMEOUT_SECONDS", 1200)
 MENTION_PATTERNS = {
     "codex": re.compile(r"(?<![A-Za-z0-9_@\\])@(?:codex|openai)(?![A-Za-z0-9_]|\.[A-Za-z])", re.IGNORECASE),
     "deepseek-harness": re.compile(
@@ -86,6 +95,66 @@ ALL_AGENTS_MENTION = re.compile(
 CODE_SPAN_PATTERN = re.compile(r"```[\s\S]*?```|`[^`\r\n]*`")
 ACTIVE_RUNS_LOCK = threading.RLock()
 ACTIVE_RUNS: dict[int, dict] = {}
+COLLAB_SERVICE = None
+COLLAB_SERVICE_LOCK = threading.Lock()
+COLLAB_AGENT_LOCKS = {agent_id: threading.Lock() for agent_id in AGENT_IDS}
+COLLAB_MESSAGES = {}
+
+
+def collaboration_service():
+    global COLLAB_SERVICE
+    with COLLAB_SERVICE_LOCK:
+        if COLLAB_SERVICE is None:
+            COLLAB_SERVICE = CollaborationService(DB_PATH, invoke_collaboration, cancel_collaboration)
+        return COLLAB_SERVICE
+
+
+def cancel_collaboration(job_id):
+    with ACTIVE_RUNS_LOCK:
+        ids = list(COLLAB_MESSAGES.get(job_id, set()))
+        processes = [ACTIVE_RUNS[i]["process"] for i in ids if i in ACTIVE_RUNS and ACTIVE_RUNS[i]["process"] is not None]
+    for message_id in ids:
+        stop_active_run(message_id)
+    for process in processes:
+        process.wait(timeout=10)
+    # stop_active_run synchronously terminates the process tree. The drive thread
+    # additionally observes the persisted cancelled call before advancing.
+
+
+def invoke_collaboration(job_id, agent_id, role, prompt):
+    service = collaboration_service()
+    with service.store.transaction() as db:
+        conversation = db.execute("SELECT conversation_id FROM collab_bindings WHERE job_id=?", (job_id,)).fetchone()[0]
+    with COLLAB_AGENT_LOCKS[agent_id]:
+        if service.store.snapshot(job_id)["phase"] in {"stopped", "quiescing"}:
+            return "cancelled", "Cancelled before CLI start"
+        with closing(sqlite3.connect(DB_PATH)) as db:
+            with db:
+                cursor = db.execute("INSERT INTO workbench_messages(conversation_id,sender_id,recipient_id,content,created_at,status) VALUES (?,?,'user','',?,'pending')",
+                                    (conversation,agent_id,utc_now()))
+                message_id = cursor.lastrowid
+        register_active_run(message_id,conversation,agent_id)
+        with ACTIVE_RUNS_LOCK:
+            COLLAB_MESSAGES.setdefault(job_id,set()).add(message_id)
+        try:
+            if service.store.snapshot(job_id)["phase"] not in {"working", "final_delivery"}:
+                update_workbench_message(message_id, "已停止。", "cancelled")
+                return "cancelled", "Cancelled before CLI start"
+            worker = run_codex if agent_id == "codex" else run_deepseek_harness
+            # Final delivery uses Codex read-only launch policy via thread context.
+            COLLAB_CONTEXT.final_delivery = role == "final"
+            worker(conversation,prompt,message_id,message_id)
+            with closing(sqlite3.connect(DB_PATH)) as db:
+                row = db.execute("SELECT status,content FROM workbench_messages WHERE id=?", (message_id,)).fetchone()
+            return row[0],row[1]
+        finally:
+            COLLAB_CONTEXT.final_delivery = False
+            unregister_active_run(message_id)
+            with ACTIVE_RUNS_LOCK:
+                COLLAB_MESSAGES.get(job_id,set()).discard(message_id)
+
+
+COLLAB_CONTEXT = threading.local()
 
 
 class AgentRunCancelled(Exception):
@@ -113,44 +182,9 @@ def clean_message_prompt(content: str) -> str:
 
 
 def resolve_message_recipients(content: str) -> tuple[list[str], dict[str, str]]:
-    """Route mentions and give each explicitly mentioned agent its own segment."""
-    mention_text = CODE_SPAN_PATTERN.sub(lambda match: " " * len(match.group()), content)
-    mentions = sorted(
-        (match.start(), match.end(), agent_id)
-        for agent_id, pattern in MENTION_PATTERNS.items()
-        for match in pattern.finditer(mention_text)
-    )
-    if ALL_AGENTS_MENTION.search(mention_text) or not mentions:
-        prompt = clean_message_prompt(content)
-        return list(AGENT_IDS), {agent_id: prompt for agent_id in AGENT_IDS}
-
-    prompts_by_agent: dict[str, list[str]] = {agent_id: [] for agent_id in AGENT_IDS}
-    if content[:mentions[0][0]].strip():
-        # Text-first style: each text segment belongs to the mention that follows it.
-        cursor = 0
-        for start, end, agent_id in mentions:
-            segment = clean_message_prompt(content[cursor:start])
-            if segment:
-                prompts_by_agent[agent_id].append(segment)
-            cursor = end
-        trailing_text = clean_message_prompt(content[cursor:])
-        if trailing_text:
-            prompts_by_agent[mentions[-1][2]].append(trailing_text)
-    else:
-        # Mention-first style: each text segment belongs to the mention before it.
-        for index, (_start, end, agent_id) in enumerate(mentions):
-            next_start = mentions[index + 1][0] if index + 1 < len(mentions) else len(content)
-            segment = clean_message_prompt(content[end:next_start])
-            if segment:
-                prompts_by_agent[agent_id].append(segment)
-
-    prompts = {
-        agent_id: "\n\n".join(agent_segments)
-        for agent_id, agent_segments in prompts_by_agent.items()
-        if agent_segments
-    }
-    recipients = [agent_id for agent_id in AGENT_IDS if agent_id in prompts]
-    return recipients, prompts
+    """Preserve the whole request; the first mention selects only the entry."""
+    recipients, _collaboration = route_message(content)
+    return recipients, {agent_id: content for agent_id in recipients}
 
 
 def utc_now() -> str:
@@ -604,15 +638,11 @@ function renderRecipients(agents, codexAvailable, dshAvailable) {
 }
 
 function recipientsForText(content) {
-  const routeText = content.replace(/```[\s\S]*?```|`[^`\r\n]*`/g, function(code) { return " ".repeat(code.length); });
-  const codexMentioned = /(^|[^A-Za-z0-9_@\\])@(?:codex|openai)(?![A-Za-z0-9_]|\.[A-Za-z])/i.test(routeText);
-  const deepseekMentioned = /(^|[^A-Za-z0-9_@\\])@(?:deepseek\s+harness|deepseekharness|deepseek)(?![A-Za-z0-9_]|\.[A-Za-z])/i.test(routeText);
-  const allMentioned = /(^|[^A-Za-z0-9_@\\])@(?:all|everyone|所有|全部)(?![A-Za-z0-9_]|\.[A-Za-z])/i.test(routeText);
-  if (allMentioned || (!codexMentioned && !deepseekMentioned)) return ["codex", "deepseek-harness"];
-  return [
-    ...(codexMentioned ? ["codex"] : []),
-    ...(deepseekMentioned ? ["deepseek-harness"] : [])
-  ];
+  const masked = content.replace(/```[\s\S]*?(?:```|$)|`[^`\r\n]*`|https?:\/\/\S+/g, m => " ".repeat(m.length));
+  if (/(^|[^A-Za-z0-9_@\\])@(?:all|everyone|\u6240\u6709|\u5168\u90e8)(?![A-Za-z0-9_])/i.test(masked)) return ["codex", "deepseek-harness"];
+  const pattern = /(^|[^A-Za-z0-9_@\\])@(?:(codex|openai)|(deepseek\s+harness|deepseekharness|deepseek))(?![A-Za-z0-9_]|\.[A-Za-z])/ig;
+  const match = pattern.exec(masked);
+  return match ? [match[2] ? "codex" : "deepseek-harness"] : ["codex", "deepseek-harness"];
 }
 
 function isInsideCode(text, position) {
@@ -764,7 +794,13 @@ function renderMessages(messages) {
     if (message.status === "pending") { content = (message.sender_name || "Agent") + " 正在思考…"; contentClass += " pending"; }
     if (message.status === "failed") contentClass += " failed";
     if (message.status === "cancelled") contentClass += " cancelled";
-    bubble.append(textElement("div", contentClass, content));
+    const protocolStart = content.indexOf("```agent-collaboration");
+    if (protocolStart >= 0 && message.status === "completed" && !isUser) {
+      bubble.append(textElement("div", contentClass, content.slice(0,protocolStart).trim()));
+      const protocolDetails = document.createElement("details");
+      protocolDetails.append(textElement("summary", "", "协作协议（调试）"), textElement("pre", "content", content.slice(protocolStart)));
+      bubble.append(protocolDetails);
+    } else { bubble.append(textElement("div", contentClass, content)); }
     if (message.status === "pending" && message.source === "workbench") {
       const stopButton = textElement("button", "stop-button message-stop", "停止此 Agent");
       stopButton.type = "button";
@@ -777,6 +813,90 @@ function renderMessages(messages) {
   }
   if (!initialized || (changed && nearBottom)) streamNode.scrollTop = streamNode.scrollHeight;
   initialized = true;
+}
+
+// Task controls use textContent throughout, including Agent/user supplied text.
+const collaborationDrafts = new Map();
+const collaborationRoot = document.createElement("section");
+collaborationRoot.setAttribute("aria-label", "Agent 协作任务");
+messagesNode.before(collaborationRoot);
+let collaborationSignature = "";
+
+async function collaborationAction(task, action, button, content = "", roundLimit = null) {
+  button.disabled = true;
+  const conversation = selectedConversation;
+  const operationId = button.dataset.operationId || crypto.randomUUID();
+  button.dataset.operationId = operationId;
+  try {
+    const body = {job_id:task.state.job_id, conversation_id:conversation, operation_id:operationId, action, content};
+    if (roundLimit !== null) body.round_limit = roundLimit;
+    const response = await fetch("/api/collaboration/action", {
+      method:"POST", headers:{"Content-Type":"application/json", "X-Capability-Token":capabilityToken},
+      body:JSON.stringify(body)
+    });
+    const data = await response.json();
+    if (!response.ok) throw new Error(data.error || "操作失败");
+    delete button.dataset.operationId;
+    collaborationSignature = "";
+    if (action === "answer") collaborationDrafts.delete(task.state.job_id);
+    await refreshAll();
+  } catch (error) {
+    alert(String(error.message || error));
+  } finally { button.disabled = false; }
+}
+
+function renderCollaboration(tasks, conversation) {
+  const signature = JSON.stringify([conversation,tasks]);
+  if (signature === collaborationSignature) return;
+  collaborationSignature = signature;
+  collaborationRoot.replaceChildren();
+  const labels = {working:"协作中",waiting_user:"等待你回答",blocked:"受阻",quiescing:"正在停止后续工作",
+    final_ready:"等待最终汇总",final_delivery:"最终汇总中",completed:"已交付",failed:"失败",interrupted:"已中断",stopped:"已停止"};
+  for (const task of tasks) {
+    const card = textElement("article", "bubble");
+    card.style.margin = "12px";
+    const state = task.state;
+    card.append(textElement("strong", "", (labels[state.phase] || state.phase) + " · " + state.used + "/" + state.round_limit + " 轮"));
+    card.append(textElement("div", "", "负责人：" + agentLabel(task.plan.owner_id) + "；最终答复：" + agentLabel(task.plan.final_responder_id)));
+    if (state.reason) card.append(textElement("p", "", state.reason));
+    const details = document.createElement("details");
+    details.append(textElement("summary", "", "需求与分工"), textElement("pre", "content", task.request + "\n" + task.plan.tasks.map(t => t.agent_id + ": " + t.instruction).join("\n")));
+    card.append(details);
+    const controls = document.createElement("div");
+    function add(label, action, contentProvider) {
+      const button = textElement("button", "stop-button", label);
+      button.type = "button";
+      button.onclick = () => collaborationAction(task,action,button,contentProvider ? contentProvider() : "");
+      controls.append(button);
+    }
+    if (["waiting_user","blocked"].includes(state.phase)) {
+      let questions = [];
+      try { questions = JSON.parse(state.questions); } catch (_) {}
+      card.append(textElement("p", "", "需要你回答：" + (questions.join("；") || state.reason)));
+      const answer = document.createElement("textarea");
+      answer.placeholder = "补充信息后继续，也可直接收尾";
+      answer.value = collaborationDrafts.get(state.job_id) || "";
+      answer.oninput = () => collaborationDrafts.set(state.job_id,answer.value);
+      card.append(answer);
+      add("提交回答并继续","answer",() => answer.value);
+    }
+    if (["working","waiting_user","blocked","final_ready"].includes(state.phase)) add("按当前成果给结论","finalize");
+    if (!["completed","stopped","interrupted"].includes(state.phase)) add("立即停止","stop");
+    if (["working","waiting_user","blocked"].includes(state.phase)) {
+      const limit = document.createElement("input");
+      limit.type = "number"; limit.min = "2"; limit.max = "100"; limit.value = state.round_limit;
+      limit.setAttribute("aria-label", "轮次上限");
+      controls.append(limit);
+      const save = textElement("button", "stop-button", "调整上限");
+      save.onclick = () => collaborationAction(task,"set_limit",save,"",Number(limit.value));
+      controls.append(save);
+    }
+    card.append(controls);
+    if (["stopped","completed","interrupted"].includes(state.phase)) {
+      card.append(textElement("p", "", "已有改动未自动回退；本任务可能涉及文件修改，范围及完整性未经核实。"));
+    }
+    collaborationRoot.append(card);
+  }
 }
 
 async function refreshCapabilities(version = refreshVersion) {
@@ -852,9 +972,11 @@ async function refreshRound(version, conversation) {
     const results = await Promise.all([
       getJson("/api/agents"),
       getJson("/api/conversations"),
-      getJson("/api/runs")
+      getJson("/api/runs"),
+      getJson("/api/collaboration/tasks?conversation_id=" + encodeURIComponent(conversation))
     ]);
     if (version !== refreshVersion || conversation !== selectedConversation) return;
+    renderCollaboration(results[3].tasks || [], conversation);
     renderAgents(results[0].agents);
     renderRecipients(results[0].agents, results[0].codex_cli_available, results[0].dsh_cli_available);
     renderConversations(results[1].conversations);
@@ -1304,25 +1426,28 @@ def resolve_codex_command() -> str | None:
 
 
 def update_codex_message(message_id: int, content: str, status: str) -> None:
-    connection = sqlite3.connect(DB_PATH, timeout=10)
-    try:
-        with connection:
-            connection.execute(
-                "UPDATE workbench_messages SET content = ?, status = ?, created_at = ? WHERE id = ?",
-                (content, status, utc_now(), message_id),
-            )
-    finally:
-        connection.close()
+    update_workbench_message(message_id, content, status)
 
 
 def update_workbench_message(message_id: int, content: str, status: str) -> None:
+    validating = getattr(COLLAB_CONTEXT, "validating_entry", False)
+    received = status == "completed"
+    if validating:
+        COLLAB_CONTEXT.entry_reply_received = False
+        if received:
+            # Use the existing durable state; transport success is tracked
+            # separately so an untouched pending row cannot be accepted.
+            status = "pending"
     connection = sqlite3.connect(DB_PATH, timeout=10)
     try:
         with connection:
-            connection.execute(
-                "UPDATE workbench_messages SET content = ?, status = ?, created_at = ? WHERE id = ?",
+            cursor = connection.execute(
+                "UPDATE workbench_messages SET content = ?, status = ?, created_at = ? WHERE id = ?"
+                + (" AND status='pending'" if validating else ""),
                 (content, status, utc_now(), message_id),
             )
+        if validating:
+            COLLAB_CONTEXT.entry_reply_received = received and cursor.rowcount == 1
     finally:
         connection.close()
 
@@ -1446,6 +1571,19 @@ def stop_all_active_runs() -> int:
 def run_managed_process(message_id: int, command: list[str], **kwargs) -> subprocess.CompletedProcess:
     timeout = kwargs.pop("timeout", None)
     input_data = kwargs.pop("input", None)
+    diagnostic_metadata = kwargs.pop("diagnostic_metadata", None)
+
+    def record_process_event(stage, outcome, error=None, returncode=None):
+        if diagnostic_metadata is None:
+            return
+        # Only explicitly selected metadata is logged; never serialize exceptions,
+        # command arguments, process output, or stdin contents.
+        event = dict(diagnostic_metadata, message_id=message_id, stage=stage, outcome=outcome)
+        if error is not None:
+            event.update(error_type=type(error).__name__, winerror=getattr(error, "winerror", None))
+        if returncode is not None:
+            event["returncode"] = returncode
+        logging.getLogger(__name__).warning("agent_process %s", json.dumps(event, sort_keys=True))
     kwargs["stdout"] = subprocess.PIPE
     kwargs["stderr"] = subprocess.PIPE
     if input_data is not None:
@@ -1460,13 +1598,20 @@ def run_managed_process(message_id: int, command: list[str], **kwargs) -> subpro
     with ACTIVE_RUNS_LOCK:
         run = ACTIVE_RUNS.get(message_id)
         if not run or run["cancel_requested"]:
+            record_process_event("start", "cancelled")
             raise AgentRunCancelled()
-        process = subprocess.Popen(command, **kwargs)
+        try:
+            process = subprocess.Popen(command, **kwargs)
+        except OSError as error:
+            record_process_event("start", "failed", error)
+            raise
         run["process"] = process
 
+    record_process_event("start", "started")
     try:
         stdout, stderr = process.communicate(input=input_data, timeout=timeout)
     except subprocess.TimeoutExpired as timeout_error:
+        record_process_event("communicate", "timeout", timeout_error)
         terminate_process_tree(process)
         stdout, stderr = process.communicate()
         if is_run_cancelled(message_id):
@@ -1477,9 +1622,17 @@ def run_managed_process(message_id: int, command: list[str], **kwargs) -> subpro
             output=stdout if stdout is not None else timeout_error.output,
             stderr=stderr if stderr is not None else timeout_error.stderr,
         ) from timeout_error
+    except OSError as error:
+        record_process_event("communicate", "failed", error)
+        terminate_process_tree(process)
+        process.wait()
+        raise
 
     if is_run_cancelled(message_id):
+        record_process_event("communicate", "cancelled")
         raise AgentRunCancelled()
+    record_process_event("communicate", "completed" if process.returncode == 0 else "failed",
+                         returncode=process.returncode)
     return subprocess.CompletedProcess(command, process.returncode, stdout, stderr)
 
 
@@ -1597,27 +1750,38 @@ def run_codex(
             answer_path = Path(temporary_directory) / "codex-answer.txt"
             if thread_id:
                 command = [
-                    codex_command, "exec", "--sandbox", CODEX_SANDBOX,
+                    codex_command, "exec", "--sandbox", ("read-only" if getattr(COLLAB_CONTEXT, "final_delivery", False) else CODEX_SANDBOX),
                     "--cd", str(working_directory), "resume",
                     "--json", "--skip-git-repo-check", "--output-last-message", str(answer_path),
-                    thread_id, agent_prompt,
+                    thread_id, "-",
                 ]
             else:
                 command = [
-                    codex_command, "exec", "--sandbox", CODEX_SANDBOX,
+                    codex_command, "exec", "--sandbox", ("read-only" if getattr(COLLAB_CONTEXT, "final_delivery", False) else CODEX_SANDBOX),
                     "--json", "--skip-git-repo-check",
                     "--cd", str(working_directory),
-                    "--output-last-message", str(answer_path), agent_prompt,
+                    "--output-last-message", str(answer_path), "-",
                 ]
 
             result = run_managed_process(
                 assistant_message_id,
                 command,
                 cwd=working_directory,
+                input=agent_prompt,
+                diagnostic_metadata={
+                    "agent_id": "codex",
+                    "transport": "stdin",
+                    "session_mode": "resume" if thread_id else "new",
+                    "prompt_utf8_bytes": len(agent_prompt.encode("utf-8")),
+                    # Windows serialization length in UTF-16 units, excluding NUL.
+                    "command_utf16_units": len(
+                        subprocess.list2cmdline(command).encode("utf-16-le")
+                    ) // 2,
+                },
                 text=True,
                 encoding="utf-8",
                 errors="replace",
-                timeout=300,
+                timeout=AGENT_CODEX_TIMEOUT_SECONDS,
             )
             if result.returncode != 0:
                 diagnostic = (result.stderr or result.stdout or "Codex CLI 执行失败").strip()
@@ -1646,7 +1810,7 @@ def run_codex(
         if is_run_cancelled(assistant_message_id):
             update_codex_message(assistant_message_id, "已停止。", "cancelled")
         else:
-            update_codex_message(assistant_message_id, "Codex 执行超时（5 分钟）。", "failed")
+            update_codex_message(assistant_message_id, f"Codex 执行超时（{AGENT_CODEX_TIMEOUT_SECONDS} 秒）。可能已有文件修改，未自动回退。", "failed")
     except Exception as error:
         if is_run_cancelled(assistant_message_id):
             update_codex_message(assistant_message_id, "已停止。", "cancelled")
@@ -1746,7 +1910,7 @@ def run_deepseek_harness(
             text=True,
             encoding="utf-8",
             errors="replace",
-            timeout=600,
+            timeout=AGENT_DEEPSEEK_TIMEOUT_SECONDS,
             shell=use_shell,
         )
 
@@ -1786,7 +1950,7 @@ def run_deepseek_harness(
         if is_run_cancelled(assistant_message_id):
             update_workbench_message(assistant_message_id, "已停止。", "cancelled")
         else:
-            update_workbench_message(assistant_message_id, "DeepSeek Harness 执行超时（10 分钟）。", "failed")
+            update_workbench_message(assistant_message_id, f"DeepSeek Harness 执行超时（{AGENT_DEEPSEEK_TIMEOUT_SECONDS} 秒）。可能已有文件修改，未自动回退。", "failed")
     except Exception as error:
         if is_run_cancelled(assistant_message_id):
             update_workbench_message(assistant_message_id, "已停止。", "cancelled")
@@ -1802,11 +1966,94 @@ def run_agent_task(
     assistant_message_id: int,
     user_message_id: int,
 ) -> None:
+    previous_validation = getattr(COLLAB_CONTEXT, "validating_entry", False)
+    previous_received = getattr(COLLAB_CONTEXT, "entry_reply_received", False)
     try:
+        _recipients, collaboration = route_message(prompt)
+        COLLAB_CONTEXT.validating_entry = collaboration
+        COLLAB_CONTEXT.entry_reply_received = False
+        if collaboration:
+            with closing(sqlite3.connect(DB_PATH, timeout=10)) as connection:
+                with connection:
+                    connection.execute("""CREATE TABLE IF NOT EXISTS collaboration_entry_results (
+                        message_id INTEGER PRIMARY KEY, conversation_id TEXT NOT NULL,
+                        payload_json TEXT NOT NULL)""")
+                if connection.execute("SELECT 1 FROM collaboration_entry_results WHERE message_id=?", (assistant_message_id,)).fetchone():
+                    return  # Already processed: never invoke the Agent again.
+                row = connection.execute("SELECT status FROM workbench_messages WHERE id=?", (assistant_message_id,)).fetchone()
+                if not row or row[0] != "pending" or is_run_cancelled(assistant_message_id):
+                    return
         worker = run_codex if agent_id == "codex" else run_deepseek_harness
-        worker(conversation_id, prompt, assistant_message_id, user_message_id)
+        worker(conversation_id, entry_prompt(prompt) if collaboration else prompt,
+               assistant_message_id, user_message_id)
+        if collaboration:
+            # Persist validated entry material; scheduling is a later stage.
+            with closing(sqlite3.connect(DB_PATH, timeout=10)) as connection:
+                row = connection.execute(
+                    "SELECT content, status FROM workbench_messages WHERE id = ?",
+                    (assistant_message_id,),
+                ).fetchone()
+                if row and row[1] == "pending" and COLLAB_CONTEXT.entry_reply_received:
+                    try:
+                        _readable, payload = parse_entry_response(row[0])
+                    except ValueError as error:
+                        fail_entry_message(assistant_message_id, "protocol incompatible", error)
+                    else:
+                        # Stop and commit share this lock; DB state is checked under
+                        # the write transaction as well. A late result cannot undo stop.
+                        with ACTIVE_RUNS_LOCK:
+                            if is_run_cancelled(assistant_message_id):
+                                return
+                            with connection:
+                                connection.execute("BEGIN IMMEDIATE")
+                                updated = connection.execute("UPDATE workbench_messages SET status='completed' WHERE id=? AND status='pending'",
+                                                             (assistant_message_id,)).rowcount
+                                if not updated:
+                                    return
+                                connection.execute("INSERT INTO collaboration_entry_results VALUES (?, ?, ?)",
+                                    (assistant_message_id, conversation_id, json.dumps(payload, ensure_ascii=False)))
+                        if payload["status"] == "completed" and payload["plan"]["tasks"] == []:
+                            return
+                        job_id = f"entry-{assistant_message_id}"
+                        service = None
+                        try:
+                            service = collaboration_service()
+                            service.register_entry(job_id,conversation_id,agent_id,prompt,payload,row[0])
+                            if is_run_cancelled(assistant_message_id):
+                                service.store.stop(job_id)
+                            else:
+                                service.kick(job_id)
+                        except Exception as error:
+                            if service is not None:
+                                try:
+                                    with service.store.transaction() as db:
+                                        db.execute("UPDATE collab_lifecycle SET phase='failed',reason=? WHERE job_id=? AND phase NOT IN ('completed','quiescing')",
+                                                   ("registration/dispatch failed: " + str(error),job_id))
+                                except Exception:
+                                    logging.exception("Could not persist collaboration registration failure")
+                            fail_entry_message(assistant_message_id, "registration/dispatch failed", error)
+                elif row and row[1] == "pending":
+                    fail_entry_message(assistant_message_id, "transport failed", "worker returned without a successful reply")
+    except Exception as error:
+        fail_entry_message(assistant_message_id, "persistence failed", error)
     finally:
+        COLLAB_CONTEXT.validating_entry = previous_validation
+        COLLAB_CONTEXT.entry_reply_received = previous_received
         unregister_active_run(assistant_message_id)
+
+
+def fail_entry_message(message_id, stage, error):
+    """Preserve the Agent's raw reply and never overwrite cancellation."""
+    logging.error("Entry %s: %s: %s", message_id, stage, error)
+    try:
+        with ACTIVE_RUNS_LOCK:
+            if is_run_cancelled(message_id):
+                return
+            with closing(sqlite3.connect(DB_PATH, timeout=10)) as db, db:
+                db.execute("UPDATE workbench_messages SET status='failed',content=content || ? WHERE id=? AND status IN ('pending','completed')",
+                           ("\n\n[Collaboration " + stage + "] " + str(error)[:4000],message_id))
+    except Exception:
+        logging.exception("Could not persist entry failure for message %s", message_id)
 
 
 class ChatHandler(BaseHTTPRequestHandler):
@@ -1876,6 +2123,17 @@ class ChatHandler(BaseHTTPRequestHandler):
     def do_GET(self) -> None:
         parsed = urlparse(self.path)
         try:
+            if parsed.path == "/api/collaboration/tasks":
+                if not self.capability_host_allowed():
+                    self.send_json(403, {"error": "Invalid Host"})
+                    return
+                conversation = parse_qs(parsed.query).get("conversation_id", ["default"])[0]
+                store = collaboration_service().store
+                with store.transaction() as db:
+                    ids = [r[0] for r in db.execute("SELECT job_id FROM collab_bindings WHERE conversation_id=? ORDER BY rowid DESC LIMIT 20", (conversation,))]
+                self.send_json(200, {"tasks": [store.view(job_id, conversation) for job_id in ids]})
+                return
+
             if parsed.path in {"/", "/api/capabilities"} and not self.capability_host_allowed():
                 self.send_json(403, {"error": "Invalid Host"})
                 return
@@ -1934,6 +2192,10 @@ class ChatHandler(BaseHTTPRequestHandler):
 
     def do_POST(self) -> None:
         parsed = urlparse(self.path)
+        if parsed.path == "/api/collaboration/action":
+            service = collaboration_service()
+            handle_action_request(self, service.store, CAPABILITY_TOKEN, service.action_changed)
+            return
         if parsed.path == "/api/capabilities/probe":
             self.do_capability_probe()
             return
@@ -1994,6 +2256,16 @@ class ChatHandler(BaseHTTPRequestHandler):
 
         if parsed.path == "/api/stop":
             try:
+                service = collaboration_service()
+                with service.store.transaction() as db:
+                    bindings = list(db.execute("SELECT job_id,conversation_id FROM collab_bindings"))
+                for job_id, conversation in bindings:
+                    with ACTIVE_RUNS_LOCK:
+                        matching = payload.get("message_id") in COLLAB_MESSAGES.get(job_id,set())
+                    if payload.get("all") is True or matching:
+                        if service.store.snapshot(job_id)["phase"] not in {"completed","stopped"}:
+                            service.store.operate(job_id,conversation,secrets.token_hex(16),"stop")
+                            service.action_changed(job_id)
                 if payload.get("all") is True:
                     stopped = stop_all_active_runs()
                     self.send_json(200, {"stopped": stopped})
@@ -2134,6 +2406,7 @@ def main() -> None:
     parser.add_argument("--port", type=int, default=8765, help="本地网页端口（默认：8765）")
     args = parser.parse_args()
     initialize_workbench_tables()
+    collaboration_service().store.interrupt_running()
     server = ThreadingHTTPServer(("127.0.0.1", args.port), ChatHandler)
     print(f"Agent 工作台已启动：http://127.0.0.1:{args.port}")
     print(f"共享数据库：{DB_PATH}")
