@@ -1,6 +1,8 @@
 """Bounded serial orchestration using the actual workbench transport callback."""
 
 import json
+import logging
+from dataclasses import dataclass
 import threading
 import uuid
 
@@ -8,6 +10,17 @@ from collaboration_actions import ActionStore
 from collaboration_entry import entry_prompt, parse_entry_response
 from collaboration_invitation import terminal_invitation
 from collaboration_protocol import validate_plan
+
+
+@dataclass(frozen=True)
+class InvocationResult:
+    state: str
+    text: str
+    dispatch_allowed: bool
+
+
+class DispatchHalted(RuntimeError):
+    """The current drive stack must unwind, including call/replan callers."""
 
 
 class CollaborationService:
@@ -19,8 +32,6 @@ class CollaborationService:
         self._locks = {}
         self._rerun = set()
         self._event_lock = threading.RLock()
-        with self.store.transaction() as db:
-            db.execute("CREATE TABLE IF NOT EXISTS collab_authorizations(job_id TEXT PRIMARY KEY,targets TEXT NOT NULL)")
 
     def register_entry(self, job_id, conversation, agent_id, request, payload, raw):
         if payload["status"] == "completed" and not payload.get("plan", {}).get("tasks"):
@@ -96,7 +107,8 @@ class CollaborationService:
             rows = [dict(r) for r in db.execute("SELECT * FROM collab_events WHERE job_id=? AND state='pending' ORDER BY rowid", (job_id,))]
         for event in rows:
             if event["kind"].startswith("cancel_then_"):
-                self.cancel(job_id)  # callback must wait until processes terminate
+                if self.cancel(job_id) is not True:
+                    raise DispatchHalted('Cancellation exit/release not confirmed; event remains pending')
                 self.store.confirm_quiescent(job_id,event["operation_id"])
             elif event["kind"] == "resume_owner":
                 with self.store.transaction() as db:
@@ -105,7 +117,7 @@ class CollaborationService:
     def control(self, job_id):
         self.events(job_id)
         state = self.store.snapshot(job_id)
-        return state["phase"] not in {"stopped", "waiting_user", "blocked", "failed", "interrupted", "completed"}
+        return state["phase"] not in {"stopped", "quiescing", "waiting_user", "blocked", "failed", "interrupted", "completed"}
 
     def material(self, job_id):
         with self.store.transaction() as db:
@@ -132,6 +144,29 @@ class CollaborationService:
                            [(job_id,t["task_id"],t["agent_id"],t["instruction"],json.dumps(t["depends_on"])) for t in additions])
             db.execute("UPDATE collab_jobs SET plan=? WHERE job_id=?", (json.dumps(plan,sort_keys=True,ensure_ascii=False),job_id))
 
+    def _invoke(self, job_id, agent_id, role, prompt, call_id, *, entry_mode=False):
+        try:
+            kwargs = dict(call_id=call_id)
+            if entry_mode:
+                kwargs['entry_mode'] = True
+            result = self.invoke(job_id, agent_id, role, prompt, **kwargs)
+            if isinstance(result, InvocationResult):
+                if not result.dispatch_allowed:
+                    raise DispatchHalted(result.text or 'Execution not released')
+                return result.state, result.text
+            # Scripted transports used by protocol tests have no process ownership.
+            return result
+        except Exception as error:
+            try:
+                with self.store.transaction() as db:
+                    db.execute("UPDATE collab_calls SET state='failed',text=? WHERE job_id=? AND call_id=? AND state='reserved'",
+                               (str(error)[:4000], job_id, call_id))
+                    db.execute("UPDATE collab_lifecycle SET phase='failed',reason=? WHERE job_id=? AND phase NOT IN ('completed','stopped','quiescing')",
+                               (str(error)[:4000], job_id))
+            except Exception:
+                logging.exception('Could not persist transport failure; dispatch halted')
+            raise DispatchHalted(str(error)) from error
+
     def call(self, job_id, agent_id, role, instruction):
         call_id = uuid.uuid4().hex
         self.store.reserve(job_id,[(call_id,agent_id,role)])
@@ -147,7 +182,7 @@ class CollaborationService:
             "全部任务结束才completed。负责人邀请必须末行独立@名称，任务必须在当前计划中。最终交付只汇总已有材料，不使用修改工具、不再邀请，"
             "材料不足如实披露，状态completed。\n当前角色：" + role + "\n当前任务：" + instruction +
             "\n完整材料：" + json.dumps(dict(view=view,tasks=tasks,calls=calls),ensure_ascii=False))
-        state,text = self.invoke(job_id,agent_id,role,prompt)
+        state,text = self._invoke(job_id,agent_id,role,prompt,call_id)
         self.events(job_id)
         if self.store.snapshot(job_id)["phase"] in {"stopped","quiescing","final_ready"} and role != "final":
             return None
@@ -169,6 +204,12 @@ class CollaborationService:
         return payload if ok else None
 
     def drive(self, job_id):
+        try:
+            return self._drive(job_id)
+        except DispatchHalted:
+            return
+
+    def _drive(self, job_id):
         decision_used = False
         while self.control(job_id):
             view,tasks,calls = self.material(job_id)
@@ -265,7 +306,7 @@ class CollaborationService:
             self.store.prepare_final(job_id,"澄清额度用尽；尚未确定完整分工")
             return
         request = view["request"] + "\n用户补充：\n" + "\n".join(u["content"] for u in view["updates"])
-        state,raw = self.invoke(job_id,agent_id,"owner",entry_prompt(request))
+        state,raw = self._invoke(job_id,agent_id,"owner",entry_prompt(request),call_id,entry_mode=True)
         self.events(job_id)
         if self.store.snapshot(job_id)["phase"] in {"stopped","quiescing","final_ready"}:
             return

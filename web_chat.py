@@ -1,6 +1,10 @@
 """Local multi-agent workbench backed by the agent_bridge SQLite database."""
 
 import argparse
+import hashlib
+import uuid
+from dataclasses import dataclass
+from functools import wraps
 import json
 import logging
 import os
@@ -14,20 +18,26 @@ import sys
 import tempfile
 import threading
 import time
-from contextlib import closing
+from contextlib import closing, contextmanager
 from datetime import datetime, timezone
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import parse_qs, urlparse
 
 
+from database_schema import ensure_schema, require_current
+from migration_barrier import MigrationBarrier
+from service_instance import ServiceInstanceLock
 from capability_probe import ProbeManager
 from collaboration_entry import route_message, entry_prompt, parse_entry_response
 from collaboration_batches import BatchStore
 from collaboration_lifecycle import LifecycleStore
 from collaboration_actions import ActionStore
 from collaboration_http import handle_action_request
-from collaboration_service import CollaborationService
+from collaboration_service import CollaborationService, InvocationResult
+from execution_runtime import Execution, ExecutionAdmissionError, format_execution_error
+from execution_inspection import InspectionQueryError, read_occupancy_snapshot
+from execution_tracking import DomainBusy, invalidate_sessions
 
 
 CODEX_SANDBOX = "workspace-write"
@@ -94,7 +104,15 @@ ALL_AGENTS_MENTION = re.compile(
 )
 CODE_SPAN_PATTERN = re.compile(r"```[\s\S]*?```|`[^`\r\n]*`")
 ACTIVE_RUNS_LOCK = threading.RLock()
+# Lock discipline: never nest the registry gate with per-run locks. Execution
+# order is state_lock -> Execution.lock -> MigrationBarrier -> BEGIN IMMEDIATE.
+# Settings alone uses registry -> barrier -> SQLite with timeout=0. No DB holder
+# acquires registry/run locks; waits for Job exit hold none of these locks.
 ACTIVE_RUNS: dict[int, dict] = {}
+SERVICE_INSTANCE_ID = None
+# No automatic production cutover: independently reviewed backend evidence is required.
+# Resolver: (agent_id, cwd, executable, environment) -> immutable resolved configuration.
+SESSION_CONFIGURATION_RESOLVER = None
 COLLAB_SERVICE = None
 COLLAB_SERVICE_LOCK = threading.Lock()
 COLLAB_AGENT_LOCKS = {agent_id: threading.Lock() for agent_id in AGENT_IDS}
@@ -111,47 +129,77 @@ def collaboration_service():
 
 def cancel_collaboration(job_id):
     with ACTIVE_RUNS_LOCK:
-        ids = list(COLLAB_MESSAGES.get(job_id, set()))
-        processes = [ACTIVE_RUNS[i]["process"] for i in ids if i in ACTIVE_RUNS and ACTIVE_RUNS[i]["process"] is not None]
-    for message_id in ids:
-        stop_active_run(message_id)
-    for process in processes:
-        process.wait(timeout=10)
-    # stop_active_run synchronously terminates the process tree. The drive thread
-    # additionally observes the persisted cancelled call before advancing.
+        runs = [ACTIVE_RUNS[i] for i in COLLAB_MESSAGES.get(job_id, ()) if i in ACTIVE_RUNS]
+    for run in runs:
+        stop_active_run(run['message_id'])
+    deadline = time.monotonic() + 12
+    for run in runs:
+        execution = run.get('execution')
+        if execution and (not execution.done.wait(max(0, deadline - time.monotonic()))
+                          or not execution.released):
+            return False
+    # Also include runs whose registry entry disappeared, e.g. a release failure.
+    with closing(connect_workbench()) as db:
+        return not db.execute("SELECT 1 FROM execution_runs WHERE source_job_id=? AND state IN ('pending','running','quiescing')", (job_id,)).fetchone()
 
 
-def invoke_collaboration(job_id, agent_id, role, prompt):
+def invoke_collaboration(job_id, agent_id, role, prompt, *, call_id, entry_mode=False):
     service = collaboration_service()
     with service.store.transaction() as db:
+        call = db.execute("SELECT state,text FROM collab_calls WHERE job_id=? AND call_id=? AND agent_id=? AND role=?",
+                          (job_id,call_id,agent_id,role)).fetchone()
+        if not call:
+            raise ValueError('Missing real collaboration call')
+        if call['state'] != 'reserved':
+            return InvocationResult(call['state'], call['text'] or '', True)
         conversation = db.execute("SELECT conversation_id FROM collab_bindings WHERE job_id=?", (job_id,)).fetchone()[0]
     with COLLAB_AGENT_LOCKS[agent_id]:
-        if service.store.snapshot(job_id)["phase"] in {"stopped", "quiescing"}:
-            return "cancelled", "Cancelled before CLI start"
-        with closing(sqlite3.connect(DB_PATH)) as db:
-            with db:
-                cursor = db.execute("INSERT INTO workbench_messages(conversation_id,sender_id,recipient_id,content,created_at,status) VALUES (?,?,'user','',?,'pending')",
-                                    (conversation,agent_id,utc_now()))
-                message_id = cursor.lastrowid
+        # Recheck after serial-agent admission: another invocation may have
+        # finished while this caller waited, before its call row was accepted.
+        with closing(connect_workbench()) as db:
+            previous = db.execute("""SELECT r.state,m.status,m.content
+                FROM execution_runs r LEFT JOIN workbench_messages m ON m.id=r.source_message_id
+                WHERE r.source_job_id=? AND r.source_call_id=? AND r.agent_id=?
+                ORDER BY r.rowid DESC LIMIT 1""", (job_id,call_id,agent_id)).fetchone()
+        if previous:
+            return InvocationResult(previous[1] or 'failed', previous[2] or 'Previous execution unavailable',
+                                    previous[0] in {'completed','failed','cancelled'})
+        if service.store.snapshot(job_id)['phase'] in {'stopped', 'quiescing'}:
+            return InvocationResult('cancelled', 'Cancelled before CLI start', False)
+        with closing(connect_workbench()) as db, db:
+            message_id = db.execute("INSERT INTO workbench_messages(conversation_id,sender_id,recipient_id,content,created_at,status) VALUES (?,?,'user','',?,'pending')",
+                                    (conversation,agent_id,utc_now())).lastrowid
         register_active_run(message_id,conversation,agent_id)
         with ACTIVE_RUNS_LOCK:
             COLLAB_MESSAGES.setdefault(job_id,set()).add(message_id)
+        allowed = False
+        previous_final = getattr(COLLAB_CONTEXT, 'final_delivery', False)
         try:
-            if service.store.snapshot(job_id)["phase"] not in {"working", "final_delivery"}:
-                update_workbench_message(message_id, "已停止。", "cancelled")
-                return "cancelled", "Cancelled before CLI start"
-            worker = run_codex if agent_id == "codex" else run_deepseek_harness
-            # Final delivery uses Codex read-only launch policy via thread context.
-            COLLAB_CONTEXT.final_delivery = role == "final"
-            worker(conversation,prompt,message_id,message_id)
-            with closing(sqlite3.connect(DB_PATH)) as db:
-                row = db.execute("SELECT status,content FROM workbench_messages WHERE id=?", (message_id,)).fetchone()
-            return row[0],row[1]
+            if service.store.snapshot(job_id)['phase'] not in {'working', 'final_delivery'}:
+                update_workbench_message(message_id, '已停止。', 'cancelled')
+            else:
+                begin_execution(message_id, source_kind='collaboration', job_id=job_id, call_id=call_id)
+                COLLAB_CONTEXT.final_delivery = role == 'final'
+                worker = run_codex if agent_id == 'codex' else run_deepseek_harness
+                reply = worker(conversation,prompt,message_id,message_id)
+                if not isinstance(reply, WorkerResult):
+                    raise RuntimeError('Worker returned no structured result')
+                if reply.status == 'completed':
+                    # Validate before release. The service still owns atomic plan acceptance.
+                    parse_entry_response(reply.text, **({} if entry_mode else dict(
+                        role=role, phase='final_delivery' if role == 'final' else 'collaboration')))
+        except Exception as error:
+            active_run(message_id)['failed'] = True
+            update_workbench_message(message_id, '执行失败：' + format_execution_error(error)[:2000], 'failed')
         finally:
-            COLLAB_CONTEXT.final_delivery = False
+            COLLAB_CONTEXT.final_delivery = previous_final
+            allowed = finish_execution(message_id)
             unregister_active_run(message_id)
             with ACTIVE_RUNS_LOCK:
                 COLLAB_MESSAGES.get(job_id,set()).discard(message_id)
+        with closing(connect_workbench()) as db:
+            row = db.execute('SELECT status,content FROM workbench_messages WHERE id=?', (message_id,)).fetchone()
+        return InvocationResult(row[0], row[1], allowed)
 
 
 COLLAB_CONTEXT = threading.local()
@@ -191,81 +239,48 @@ def utc_now() -> str:
     return datetime.now(timezone.utc).isoformat(timespec="seconds")
 
 
+class _WorkbenchConnection(sqlite3.Connection):
+    def close(self):
+        try:
+            super().close()
+        finally:
+            permit = getattr(self, '_permit', None)
+            if permit is not None:
+                self._permit = None
+                permit.__exit__(None, None, None)
+
+
+def connect_workbench(timeout=10):
+    permit = MigrationBarrier(DB_PATH)
+    permit.__enter__()
+    db = None
+    try:
+        db = sqlite3.connect(Path(DB_PATH).resolve().as_uri() + '?mode=rw', uri=True, timeout=timeout, factory=_WorkbenchConnection)
+        db._permit = permit
+        require_current(db)
+        return db
+    except BaseException:
+        if db is not None:
+            db.close()
+        else:
+            permit.__exit__(None, None, None)
+        raise
+
+
 def initialize_workbench_tables() -> None:
-    if not DB_PATH.is_file():
-        raise FileNotFoundError(f"找不到桥接数据库：{DB_PATH}")
-    connection = sqlite3.connect(DB_PATH, timeout=10)
+    ensure_schema(DB_PATH)
+    connection = connect_workbench(timeout=10)
     try:
         with connection:
-            connection.executescript(
-                """
-                CREATE TABLE IF NOT EXISTS workbench_sessions (
-                    conversation_id TEXT PRIMARY KEY,
-                    codex_thread_id TEXT NOT NULL,
-                    updated_at TEXT NOT NULL
-                );
-
-                CREATE TABLE IF NOT EXISTS workbench_messages (
-                    id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    conversation_id TEXT NOT NULL,
-                    sender_id TEXT NOT NULL,
-                    recipient_id TEXT NOT NULL,
-                    content TEXT NOT NULL,
-                    created_at TEXT NOT NULL,
-                    status TEXT NOT NULL CHECK (status IN ('pending', 'completed', 'failed', 'cancelled'))
-                );
-
-                CREATE INDEX IF NOT EXISTS idx_workbench_messages_conversation
-                    ON workbench_messages(conversation_id, id);
-
-                CREATE TABLE IF NOT EXISTS workbench_agent_sessions (
-                    conversation_id TEXT NOT NULL,
-                    agent_id TEXT NOT NULL,
-                    session_id TEXT NOT NULL,
-                    updated_at TEXT NOT NULL,
-                    PRIMARY KEY (conversation_id, agent_id)
-                );
-
-                CREATE TABLE IF NOT EXISTS workbench_conversation_settings (
-                    conversation_id TEXT PRIMARY KEY,
-                    working_directory TEXT NOT NULL,
-                    updated_at TEXT NOT NULL
-                );
-                """
-            )
-            schema_row = connection.execute(
-                "SELECT sql FROM sqlite_master WHERE type = 'table' AND name = 'workbench_messages'"
-            ).fetchone()
-            if schema_row and "'cancelled'" not in (schema_row[0] or ""):
-                connection.execute("BEGIN IMMEDIATE")
-                connection.execute("DROP INDEX IF EXISTS idx_workbench_messages_conversation")
-                connection.execute("ALTER TABLE workbench_messages RENAME TO workbench_messages_before_cancel")
-                connection.execute(
-                    """CREATE TABLE workbench_messages (
-                           id INTEGER PRIMARY KEY AUTOINCREMENT,
-                           conversation_id TEXT NOT NULL,
-                           sender_id TEXT NOT NULL,
-                           recipient_id TEXT NOT NULL,
-                           content TEXT NOT NULL,
-                           created_at TEXT NOT NULL,
-                           status TEXT NOT NULL CHECK (status IN ('pending', 'completed', 'failed', 'cancelled'))
-                       )"""
-                )
-                connection.execute(
-                    """INSERT INTO workbench_messages
-                       (id, conversation_id, sender_id, recipient_id, content, created_at, status)
-                       SELECT id, conversation_id, sender_id, recipient_id, content, created_at, status
-                       FROM workbench_messages_before_cancel"""
-                )
-                connection.execute("DROP TABLE workbench_messages_before_cancel")
-                connection.execute(
-                    "CREATE INDEX idx_workbench_messages_conversation ON workbench_messages(conversation_id, id)"
-                )
-            connection.execute(
-                """UPDATE workbench_messages
-                   SET content = '工作台重新启动时，未完成任务已停止。', status = 'cancelled'
-                   WHERE status = 'pending'"""
-            )
+            connection.execute("""UPDATE workbench_messages SET content=CASE WHEN EXISTS (
+                SELECT 1 FROM execution_runs r WHERE r.source_message_id=workbench_messages.id
+                AND (r.state IN ('pending','running','quiescing')
+                    OR EXISTS (SELECT 1 FROM execution_domains d
+                               WHERE d.owner_run_id=r.run_id AND d.state!='idle')
+                    OR EXISTS (SELECT 1 FROM execution_sessions s WHERE s.owner_run_id=r.run_id))
+                ) THEN ? ELSE ? END, status='cancelled' WHERE status='pending'""",
+                ('工作台曾中断；此任务未完成收尾，旧执行退出情况未知，相关占用仍保留。',
+                 '工作台曾中断；此消息已取消，旧执行退出情况未知，未确认关联占用。'))
     finally:
         connection.close()
 
@@ -1239,7 +1254,8 @@ def normalize_working_directory(value: str) -> str:
 
 
 def save_working_directory(conversation_id: str, working_directory: str) -> bool:
-    connection = sqlite3.connect(DB_PATH, timeout=10)
+    # Settings holds the short registry gate: fail fast on DB contention.
+    connection = connect_workbench(timeout=0)
     try:
         with connection:
             row = connection.execute(
@@ -1258,13 +1274,13 @@ def save_working_directory(conversation_id: str, working_directory: str) -> bool
                 (conversation_id, working_directory, utc_now()),
             )
             # CLI sessions are tied to the directory where they were created.
-            # Keep the shared transcript, but start fresh CLI sessions in the new directory.
-            connection.execute(
-                "DELETE FROM workbench_sessions WHERE conversation_id = ?", (conversation_id,)
-            )
-            connection.execute(
-                "DELETE FROM workbench_agent_sessions WHERE conversation_id = ?", (conversation_id,)
-            )
+            # Keep the transcript; enabled task-5 bindings require explicit validation/adoption.
+            if SESSION_CONFIGURATION_RESOLVER is not None:
+                invalidate_sessions(connection, conversation_id)
+            else:
+                # Pre-cutover 4B compatibility only; never used by the enabled task-5 path.
+                connection.execute("DELETE FROM workbench_sessions WHERE conversation_id = ?", (conversation_id,))
+                connection.execute("DELETE FROM workbench_agent_sessions WHERE conversation_id = ?", (conversation_id,))
             return True
     finally:
         connection.close()
@@ -1348,7 +1364,9 @@ def get_codex_thread_id(conversation_id: str) -> str | None:
 
 
 def save_codex_thread_id(conversation_id: str, thread_id: str) -> None:
-    connection = sqlite3.connect(DB_PATH, timeout=10)
+    if SESSION_CONFIGURATION_RESOLVER is not None:
+        raise RuntimeError('Legacy session storage is read-only after task-5 cutover')
+    connection = connect_workbench(timeout=10)
     try:
         with connection:
             connection.execute(
@@ -1374,7 +1392,9 @@ def get_agent_session_id(conversation_id: str, agent_id: str) -> str | None:
 
 
 def save_agent_session_id(conversation_id: str, agent_id: str, session_id: str) -> None:
-    connection = sqlite3.connect(DB_PATH, timeout=10)
+    if SESSION_CONFIGURATION_RESOLVER is not None:
+        raise RuntimeError('Legacy session storage is read-only after task-5 cutover')
+    connection = connect_workbench(timeout=10)
     try:
         with connection:
             connection.execute(
@@ -1438,12 +1458,12 @@ def update_workbench_message(message_id: int, content: str, status: str) -> None
             # Use the existing durable state; transport success is tracked
             # separately so an untouched pending row cannot be accepted.
             status = "pending"
-    connection = sqlite3.connect(DB_PATH, timeout=10)
+    connection = connect_workbench(timeout=10)
     try:
         with connection:
             cursor = connection.execute(
                 "UPDATE workbench_messages SET content = ?, status = ?, created_at = ? WHERE id = ?"
-                + (" AND status='pending'" if validating else ""),
+                + " AND status='pending'",
                 (content, status, utc_now(), message_id),
             )
         if validating:
@@ -1452,13 +1472,108 @@ def update_workbench_message(message_id: int, content: str, status: str) -> None
         connection.close()
 
 
+@dataclass(frozen=True)
+class WorkerResult:
+    status: str
+    text: str
+    process_result: object = None
+    session_validation: object = None
+
+
+def structured_worker(worker):
+    @wraps(worker)
+    def execute(conversation, prompt, message_id, user_message_id):
+        worker(conversation, prompt, message_id, user_message_id)
+        with closing(connect_workbench()) as db:
+            row = db.execute('SELECT status,content FROM workbench_messages WHERE id=?', (message_id,)).fetchone()
+        run = active_run(message_id)
+        execution = run.get('execution') if run else None
+        return WorkerResult(row[0], row[1], execution.result if execution else None,
+                            execution.session_validation if execution else None)
+    return execute
+
+
+def active_run(message_id):
+    # Never retain the registry lock when taking a per-run lock or entering DB.
+    with ACTIVE_RUNS_LOCK:
+        return ACTIVE_RUNS.get(message_id)
+
+
+def begin_execution(message_id, *, source_kind, job_id=None, call_id=None):
+    run = active_run(message_id)
+    if not run:
+        raise RuntimeError('Missing active execution')
+    with run['state_lock']:
+        if run['claimed']:
+            raise RuntimeError('Duplicate execution entry')
+        run['claimed'] = True
+        if run['cancel_requested']:
+            raise AgentRunCancelled()
+        try:
+            directory = resolve_working_directory(run['conversation_id'])
+            run['execution'] = Execution(DB_PATH, instance_id=SERVICE_INSTANCE_ID,
+                agent_id=run['agent_id'], conversation_id=run['conversation_id'],
+                working_directory=directory, source_kind=source_kind, message_id=message_id,
+                job_id=job_id, call_id=call_id)
+        except DomainBusy:
+            # DomainBusy is an established admission contract; keep it catchable.
+            raise
+        except Exception as error:
+            # Assignment only happens after successful reservation; no tokenless finish.
+            raise ExecutionAdmissionError(error) from error
+        return run['execution']
+
+
+def finish_execution(message_id):
+    run = active_run(message_id)
+    if not run or not run.get('execution'):
+        return False
+    execution = run['execution']
+    try:
+        row = None
+        status_error = None
+        try:
+            with closing(connect_workbench()) as db:
+                row = db.execute('SELECT status FROM workbench_messages WHERE id=?', (message_id,)).fetchone()
+        except Exception as error:
+            # A failed message read must not bypass not_started finalization.
+            status_error = error
+        outcome = 'failed' if run.get('failed') else row[0] if row and row[0] in {'completed', 'cancelled'} else 'failed'
+        if not execution.finish(outcome):
+            raise RuntimeError('退出未确认；保留执行域占用，已停止后续派发，需人工核验恢复。')
+        if status_error is not None:
+            raise ExecutionAdmissionError(status_error) from status_error
+        if execution.dispatch_error:
+            # A known unstarted/finished process may release its domain, while a
+            # session conflict still stops this collaboration drive (no replay).
+            return False
+        return True
+    except Exception as error:
+        logging.exception('Execution release failed for message %s', message_id)
+        # A release fault is visible even when a reply was already written.
+        try:
+            notice = ('\n[本次执行已收尾，但状态读取失败，停止派发] ' if execution.released else
+                      '\n[执行域未释放，停止派发；需人工核验] ')
+            with closing(connect_workbench()) as db, db:
+                db.execute("UPDATE workbench_messages SET status=CASE WHEN status='cancelled' THEN status ELSE 'failed' END,content=content || ? WHERE id=?",
+                           (notice + format_execution_error(error)[:1000], message_id))
+        except Exception:
+            logging.exception('Could not persist execution release fault')
+        return False
+
+
 def register_active_run(message_id: int, conversation_id: str, agent_id: str) -> None:
     with ACTIVE_RUNS_LOCK:
+        if message_id in ACTIVE_RUNS:
+            return
         ACTIVE_RUNS[message_id] = {
             "message_id": message_id,
             "conversation_id": conversation_id,
             "agent_id": agent_id,
             "process": None,
+            "state_lock": threading.RLock(),
+            "claimed": False,
+            "execution": None,
             "cancel_requested": False,
             "started_at": utc_now(),
         }
@@ -1532,22 +1647,20 @@ def terminate_process_tree(process: subprocess.Popen) -> None:
 
 
 def stop_active_run(message_id: int) -> bool:
-    with ACTIVE_RUNS_LOCK:
-        run = ACTIVE_RUNS.get(message_id)
-        if not run:
+    run = active_run(message_id)
+    if not run:
+        return False
+    with run['state_lock']:
+        execution = run.get('execution')
+        if execution and execution.done.is_set():
             return False
-        if run["cancel_requested"]:
-            return True
-        process = run["process"]
-        if process is not None and process.poll() is not None:
-            return False
-        run["cancel_requested"] = True
-
-    try:
-        update_workbench_message(message_id, "已停止。", "cancelled")
-    finally:
-        if process is not None:
-            terminate_process_tree(process)
+        run['cancel_requested'] = True
+        try:
+            if execution:
+                execution.cancel()
+        except Exception:
+            logging.exception('Cancel intent persistence failed; process cancellation remains active')
+    update_workbench_message(message_id, '已停止。', 'cancelled')
     return True
 
 
@@ -1563,81 +1676,98 @@ def stop_all_active_runs() -> int:
             if stop_active_run(message_id):
                 stopped += 1
         except sqlite3.Error:
-            # stop_active_run still terminates the process in its finally block.
+            # Cancellation has already been signalled before persistence errors.
             stopped += 1
     return stopped
 
 
-def run_managed_process(message_id: int, command: list[str], **kwargs) -> subprocess.CompletedProcess:
-    timeout = kwargs.pop("timeout", None)
-    input_data = kwargs.pop("input", None)
-    diagnostic_metadata = kwargs.pop("diagnostic_metadata", None)
-
-    def record_process_event(stage, outcome, error=None, returncode=None):
-        if diagnostic_metadata is None:
-            return
-        # Only explicitly selected metadata is logged; never serialize exceptions,
-        # command arguments, process output, or stdin contents.
-        event = dict(diagnostic_metadata, message_id=message_id, stage=stage, outcome=outcome)
-        if error is not None:
-            event.update(error_type=type(error).__name__, winerror=getattr(error, "winerror", None))
-        if returncode is not None:
-            event["returncode"] = returncode
-        logging.getLogger(__name__).warning("agent_process %s", json.dumps(event, sort_keys=True))
-    kwargs["stdout"] = subprocess.PIPE
-    kwargs["stderr"] = subprocess.PIPE
-    if input_data is not None:
-        kwargs["stdin"] = subprocess.PIPE
-    if os.name == "nt":
-        kwargs["creationflags"] = kwargs.get("creationflags", 0) | getattr(
-            subprocess, "CREATE_NEW_PROCESS_GROUP", 0
-        )
-    else:
-        kwargs["start_new_session"] = True
-
-    with ACTIVE_RUNS_LOCK:
-        run = ACTIVE_RUNS.get(message_id)
-        if not run or run["cancel_requested"]:
-            record_process_event("start", "cancelled")
-            raise AgentRunCancelled()
-        try:
-            process = subprocess.Popen(command, **kwargs)
-        except OSError as error:
-            record_process_event("start", "failed", error)
-            raise
-        run["process"] = process
-
-    record_process_event("start", "started")
+def prepare_execution_session(message_id, agent_id, executable, environment):
+    """One-way authority selection, frozen for this invocation. Never dual-write."""
+    execution = active_run(message_id)['execution']
+    resolver = SESSION_CONFIGURATION_RESOLVER
+    if resolver is None:
+        execution.session_configuration = None
+        return execution.select_legacy_session('codex' if agent_id == 'codex' else 'dsh',
+                                               None if agent_id == 'codex' else DSH_SESSION_KEY)
     try:
-        stdout, stderr = process.communicate(input=input_data, timeout=timeout)
-    except subprocess.TimeoutExpired as timeout_error:
-        record_process_event("communicate", "timeout", timeout_error)
-        terminate_process_tree(process)
-        stdout, stderr = process.communicate()
-        if is_run_cancelled(message_id):
-            raise AgentRunCancelled() from timeout_error
-        raise subprocess.TimeoutExpired(
-            command,
-            timeout,
-            output=stdout if stdout is not None else timeout_error.output,
-            stderr=stderr if stderr is not None else timeout_error.stderr,
-        ) from timeout_error
-    except OSError as error:
-        record_process_event("communicate", "failed", error)
-        terminate_process_tree(process)
-        process.wait()
-        raise
+        config = resolver(agent_id, execution.working_directory, executable, environment)
+        if config is None or not config.evidence_reference:
+            raise RuntimeError('Session namespace evidence missing; refusing production cutover')
+        expected_adapter = 'codex' if agent_id == 'codex' else 'dsh'
+        if config.identity.adapter_id != expected_adapter:
+            raise RuntimeError('Session adapter mismatch')
+    except Exception as error:
+        failure = ExecutionAdmissionError(error)
+        execution.dispatch_error = str(failure)
+        raise failure from error
+    execution.session_configuration = config
+    return execution.claim_session(config.identity)
 
-    if is_run_cancelled(message_id):
-        record_process_event("communicate", "cancelled")
+
+def run_managed_process(message_id: int, command: list[str], **kwargs) -> subprocess.CompletedProcess:
+    run = active_run(message_id)
+    if not run or not run.get('execution'):
+        raise RuntimeError('CLI requires an admitted execution domain')
+    execution = run['execution']
+    metadata = kwargs.pop('diagnostic_metadata', None) or {}
+    kwargs.pop('text', None)
+    kwargs.pop('encoding', None)
+    kwargs.pop('errors', None)
+    if kwargs.pop('shell', False):
+        raise ValueError('Managed execution does not allow shell=True')
+    command = list(command)
+    if not Path(command[0]).is_absolute():
+        resolved = shutil.which(command[0])
+        if not resolved:
+            raise FileNotFoundError('Launch executable not found')
+        command[0] = resolved
+    snapshot = dict(agent_id=run['agent_id'], executable=command[0],
+                    working_directory=str(execution.working_directory), workspace_version=0,
+                    launch_mode=metadata.get('session_mode', 'resume' if '--session-id' in command or 'resume' in command else 'new'))
+    if run['agent_id'] == 'codex':
+        snapshot['sandbox'] = command[command.index('--sandbox') + 1]
+    else:
+        snapshot['profile'] = command[command.index('--profile') + 1]
+        patch = command[command.index('--patch') + 1]
+        snapshot['configuration_id'] = hashlib.sha256(patch.encode('utf-8')).hexdigest()
+    config = getattr(execution, 'session_configuration', None)
+    if config is not None:
+        try:
+            config.check_launch(command, kwargs.get('cwd'), kwargs.get('env', os.environ))
+        except Exception:
+            execution.dispatch_error = 'Resolved backend configuration changed before startup'
+            raise
+        snapshot['configuration_id'] = config.identity.config_fingerprint
+        snapshot['session_identity'] = dict(zip(
+            ('adapter_id','backend_scope','config_fingerprint','workspace_id','workspace_version'),
+            config.identity.values()))
+    result = execution.launch(command, snapshot=snapshot, **kwargs)
+    if config is not None:
+        validation = execution.observe_session(config.identity.adapter_id,
+            result.stdout.decode('utf-8', errors='replace'),
+            normal_completion=result.outcome == 'completed' and result.returncode == 0)
+        try:
+            config.check_launch(command, kwargs.get('cwd'), kwargs.get('env', os.environ))
+        except Exception:
+            from execution_tracking import SessionValidation
+            execution.session_validation = SessionValidation('unverified', validation.actual_id, False, validation.observed_ids)
+            execution.dispatch_error = 'Resolved backend configuration changed during execution'
+            raise
+        if result.outcome == 'completed' and validation.status != 'verified':
+            execution.dispatch_error = 'Session ID missing or inconsistent'
+            raise RuntimeError('Session ID missing or inconsistent; binding retained for review')
+    if result.outcome == 'cancelled':
         raise AgentRunCancelled()
-    record_process_event("communicate", "completed" if process.returncode == 0 else "failed",
-                         returncode=process.returncode)
-    return subprocess.CompletedProcess(command, process.returncode, stdout, stderr)
+    if result.outcome == 'timeout':
+        raise subprocess.TimeoutExpired(command, kwargs.get('timeout'))
+    if result.outcome != 'completed' or result.exit_evidence != 'confirmed':
+        raise RuntimeError('Managed process failed: ' + (result.error_type or result.outcome))
+    return subprocess.CompletedProcess(command, result.returncode,
+        result.stdout.decode('utf-8', errors='replace'), result.stderr.decode('utf-8', errors='replace'))
 
 
 def touch_agent_last_seen(agent_id: str) -> None:
-    connection = sqlite3.connect(DB_PATH, timeout=10)
+    connection = connect_workbench(timeout=10)
     try:
         with connection:
             connection.execute(
@@ -1727,6 +1857,7 @@ def build_agent_prompt(
     return workspace_context + shared_context + "当前用户消息：\n" + prompt
 
 
+@structured_worker
 def run_codex(
     conversation_id: str,
     prompt: str,
@@ -1735,14 +1866,15 @@ def run_codex(
 ) -> None:
     try:
         touch_agent_last_seen("codex")
-        working_directory = resolve_working_directory(conversation_id)
+        working_directory = active_run(assistant_message_id)['execution'].working_directory
         codex_command = resolve_codex_command()
         if not codex_command:
             raise RuntimeError(
                 "找不到 Codex CLI。请确认已安装 Codex；也可以设置 CODEX_CLI 为 codex.exe 的完整路径。"
             )
 
-        thread_id = get_codex_thread_id(conversation_id)
+        environment = os.environ.copy()
+        thread_id = prepare_execution_session(assistant_message_id, 'codex', codex_command, environment)
         agent_prompt = build_agent_prompt(
             conversation_id, "codex", user_message_id, prompt, working_directory
         )
@@ -1767,6 +1899,7 @@ def run_codex(
                 assistant_message_id,
                 command,
                 cwd=working_directory,
+                env=environment,
                 input=agent_prompt,
                 diagnostic_metadata={
                     "agent_id": "codex",
@@ -1798,7 +1931,8 @@ def run_codex(
                         break
                 if not thread_id:
                     raise RuntimeError("Codex 已返回，但没有找到新会话的 thread_id。")
-                save_codex_thread_id(conversation_id, thread_id)
+                if active_run(assistant_message_id)['execution'].session_claim is None:
+                    save_codex_thread_id(conversation_id, thread_id)
 
             answer = answer_path.read_text(encoding="utf-8").strip() if answer_path.exists() else ""
             if not answer:
@@ -1815,7 +1949,7 @@ def run_codex(
         if is_run_cancelled(assistant_message_id):
             update_codex_message(assistant_message_id, "已停止。", "cancelled")
         else:
-            message = str(error).strip() or error.__class__.__name__
+            message = format_execution_error(error)
             update_codex_message(assistant_message_id, "调用 Codex 失败：" + message[:4000], "failed")
 
 
@@ -1862,6 +1996,7 @@ def build_dsh_command(command: str, arguments: list[str]) -> tuple[list[str], bo
     return [command, *arguments], False, False
 
 
+@structured_worker
 def run_deepseek_harness(
     conversation_id: str,
     prompt: str,
@@ -1870,7 +2005,7 @@ def run_deepseek_harness(
 ) -> None:
     try:
         touch_agent_last_seen("deepseek-harness")
-        working_directory = resolve_working_directory(conversation_id)
+        working_directory = active_run(assistant_message_id)['execution'].working_directory
         dsh_command = resolve_dsh_command()
         if not dsh_command:
             raise RuntimeError(
@@ -1880,12 +2015,7 @@ def run_deepseek_harness(
         if not DSH_AUTH_PATCH.is_file():
             raise RuntimeError(f"找不到 DSH headless 登录配置：{DSH_AUTH_PATCH}")
 
-        # Use the configured headless profile. Keep a separate session key so
-        # workbench sessions created in earlier isolated profiles are not resumed here.
-        session_id = get_agent_session_id(conversation_id, DSH_SESSION_KEY)
-        if session_id and not all(char.isalnum() or char in "._-" for char in session_id):
-            raise RuntimeError("保存的 DeepSeek Harness session_id 格式无效，请新建工作台对话后重试。")
-
+        # Build the launch configuration first; resolve its fixed ID exactly once below.
         agent_prompt = build_agent_prompt(
             conversation_id, "deepseek-harness", user_message_id, prompt, working_directory
         )
@@ -1894,13 +2024,16 @@ def run_deepseek_harness(
             "--patch", str(DSH_AUTH_PATCH),
             "--json",
         ]
-        if session_id:
-            arguments.extend(["--session-id", session_id])
         arguments.append("-")
         command, use_shell, use_electron_as_node = build_dsh_command(dsh_command, arguments)
         environment = os.environ.copy()
         if use_electron_as_node:
             environment["ELECTRON_RUN_AS_NODE"] = "1"
+        session_id = prepare_execution_session(assistant_message_id, 'deepseek-harness', command[0], environment)
+        if session_id:
+            if not all(char.isalnum() or char in '._-' for char in session_id):
+                raise RuntimeError('Invalid DSH resume ID')
+            command[-1:-1] = ['--session-id', session_id]
         result = run_managed_process(
             assistant_message_id,
             command,
@@ -1929,7 +2062,8 @@ def run_deepseek_harness(
                     session_id = event["sessionId"]
                     break
             if session_id:
-                save_agent_session_id(conversation_id, DSH_SESSION_KEY, session_id)
+                if active_run(assistant_message_id)['execution'].session_claim is None:
+                    save_agent_session_id(conversation_id, DSH_SESSION_KEY, session_id)
 
         if result.returncode != 0:
             diagnostic = (result.stderr or "").strip()
@@ -1955,7 +2089,7 @@ def run_deepseek_harness(
         if is_run_cancelled(assistant_message_id):
             update_workbench_message(assistant_message_id, "已停止。", "cancelled")
         else:
-            message = str(error).strip() or error.__class__.__name__
+            message = format_execution_error(error)
             update_workbench_message(assistant_message_id, "调用 DeepSeek Harness 失败：" + message[:4000], "failed")
 
 
@@ -1968,90 +2102,115 @@ def run_agent_task(
 ) -> None:
     previous_validation = getattr(COLLAB_CONTEXT, "validating_entry", False)
     previous_received = getattr(COLLAB_CONTEXT, "entry_reply_received", False)
+    owns_execution = False
+    pending_kick = None
     try:
         _recipients, collaboration = route_message(prompt)
         COLLAB_CONTEXT.validating_entry = collaboration
         COLLAB_CONTEXT.entry_reply_received = False
         if collaboration:
-            with closing(sqlite3.connect(DB_PATH, timeout=10)) as connection:
-                with connection:
-                    connection.execute("""CREATE TABLE IF NOT EXISTS collaboration_entry_results (
-                        message_id INTEGER PRIMARY KEY, conversation_id TEXT NOT NULL,
-                        payload_json TEXT NOT NULL)""")
+            with closing(connect_workbench(timeout=10)) as connection:
                 if connection.execute("SELECT 1 FROM collaboration_entry_results WHERE message_id=?", (assistant_message_id,)).fetchone():
                     return  # Already processed: never invoke the Agent again.
                 row = connection.execute("SELECT status FROM workbench_messages WHERE id=?", (assistant_message_id,)).fetchone()
-                if not row or row[0] != "pending" or is_run_cancelled(assistant_message_id):
+                if not row or row[0] != "pending":
                     return
+        with closing(connect_workbench()) as check:
+            row = check.execute('SELECT status FROM workbench_messages WHERE id=?', (assistant_message_id,)).fetchone()
+            if not row or row[0] != 'pending':
+                return
+        run = active_run(assistant_message_id)
+        if not run:
+            return  # A concurrent completion may already have unregistered it.
+        with run['state_lock']:
+            if run['claimed']:
+                return
+            owns_execution = True
+            begin_execution(assistant_message_id, source_kind='collaboration' if collaboration else 'workbench',
+                            job_id=f'entry-{assistant_message_id}' if collaboration else None,
+                            call_id='entry' if collaboration else None)
         worker = run_codex if agent_id == "codex" else run_deepseek_harness
-        worker(conversation_id, entry_prompt(prompt) if collaboration else prompt,
+        reply = worker(conversation_id, entry_prompt(prompt) if collaboration else prompt,
                assistant_message_id, user_message_id)
+        if not isinstance(reply, WorkerResult):
+            raise RuntimeError("Worker returned no structured result")
         if collaboration:
             # Persist validated entry material; scheduling is a later stage.
-            with closing(sqlite3.connect(DB_PATH, timeout=10)) as connection:
+            with closing(connect_workbench(timeout=10)) as connection:
                 row = connection.execute(
                     "SELECT content, status FROM workbench_messages WHERE id = ?",
                     (assistant_message_id,),
                 ).fetchone()
-                if row and row[1] == "pending" and COLLAB_CONTEXT.entry_reply_received:
-                    try:
-                        _readable, payload = parse_entry_response(row[0])
-                    except ValueError as error:
-                        fail_entry_message(assistant_message_id, "protocol incompatible", error)
-                    else:
-                        # Stop and commit share this lock; DB state is checked under
-                        # the write transaction as well. A late result cannot undo stop.
-                        with ACTIVE_RUNS_LOCK:
-                            if is_run_cancelled(assistant_message_id):
-                                return
-                            with connection:
-                                connection.execute("BEGIN IMMEDIATE")
-                                updated = connection.execute("UPDATE workbench_messages SET status='completed' WHERE id=? AND status='pending'",
-                                                             (assistant_message_id,)).rowcount
-                                if not updated:
-                                    return
-                                connection.execute("INSERT INTO collaboration_entry_results VALUES (?, ?, ?)",
-                                    (assistant_message_id, conversation_id, json.dumps(payload, ensure_ascii=False)))
-                        if payload["status"] == "completed" and payload["plan"]["tasks"] == []:
+            if row and row[1] == "pending" and COLLAB_CONTEXT.entry_reply_received:
+                try:
+                    _readable, payload = parse_entry_response(row[0])
+                except ValueError as error:
+                    fail_entry_message(assistant_message_id, "protocol incompatible", error)
+                else:
+                    # Stop and commit share this lock; DB state is checked under
+                    # the write transaction as well. A late result cannot undo stop.
+                    with run['state_lock']:
+                        if run["cancel_requested"]:
                             return
-                        job_id = f"entry-{assistant_message_id}"
-                        service = None
-                        try:
-                            service = collaboration_service()
-                            service.register_entry(job_id,conversation_id,agent_id,prompt,payload,row[0])
-                            if is_run_cancelled(assistant_message_id):
-                                service.store.stop(job_id)
-                            else:
-                                service.kick(job_id)
-                        except Exception as error:
-                            if service is not None:
-                                try:
-                                    with service.store.transaction() as db:
-                                        db.execute("UPDATE collab_lifecycle SET phase='failed',reason=? WHERE job_id=? AND phase NOT IN ('completed','quiescing')",
-                                                   ("registration/dispatch failed: " + str(error),job_id))
-                                except Exception:
-                                    logging.exception("Could not persist collaboration registration failure")
-                            fail_entry_message(assistant_message_id, "registration/dispatch failed", error)
-                elif row and row[1] == "pending":
-                    fail_entry_message(assistant_message_id, "transport failed", "worker returned without a successful reply")
+                        with closing(connect_workbench(timeout=10)) as connection, connection:
+                            connection.execute("BEGIN IMMEDIATE")
+                            updated = connection.execute("UPDATE workbench_messages SET status='completed' WHERE id=? AND status='pending'",
+                                                         (assistant_message_id,)).rowcount
+                            if not updated:
+                                return
+                            connection.execute("INSERT INTO collaboration_entry_results VALUES (?, ?, ?)",
+                                (assistant_message_id, conversation_id, json.dumps(payload, ensure_ascii=False)))
+                    if payload["status"] == "completed" and payload["plan"]["tasks"] == []:
+                        return
+                    job_id = f"entry-{assistant_message_id}"
+                    service = None
+                    try:
+                        service = collaboration_service()
+                        service.register_entry(job_id,conversation_id,agent_id,prompt,payload,row[0])
+                        if is_run_cancelled(assistant_message_id):
+                            service.store.stop(job_id)
+                        else:
+                            pending_kick = (service, job_id)
+                    except Exception as error:
+                        if service is not None:
+                            try:
+                                with service.store.transaction() as db:
+                                    db.execute("UPDATE collab_lifecycle SET phase='failed',reason=? WHERE job_id=? AND phase NOT IN ('completed','quiescing')",
+                                               ("registration/dispatch failed: " + str(error),job_id))
+                            except Exception:
+                                logging.exception("Could not persist collaboration registration failure")
+                        fail_entry_message(assistant_message_id, "registration/dispatch failed", error)
+            elif row and row[1] == "pending":
+                fail_entry_message(assistant_message_id, "transport failed", "worker returned without a successful reply")
     except Exception as error:
         fail_entry_message(assistant_message_id, "persistence failed", error)
     finally:
         COLLAB_CONTEXT.validating_entry = previous_validation
         COLLAB_CONTEXT.entry_reply_received = previous_received
-        unregister_active_run(assistant_message_id)
+        if owns_execution:
+            allowed = finish_execution(assistant_message_id)
+            unregister_active_run(assistant_message_id)
+            if pending_kick:
+                service, job_id = pending_kick
+                if allowed and not run['cancel_requested']:
+                    service.kick(job_id)
+                else:
+                    with service.store.transaction() as db:
+                        db.execute("UPDATE collab_lifecycle SET phase='failed',reason='Execution domain not released' WHERE job_id=? AND phase NOT IN ('completed','quiescing','stopped')", (job_id,))
 
 
 def fail_entry_message(message_id, stage, error):
     """Preserve the Agent's raw reply and never overwrite cancellation."""
     logging.error("Entry %s: %s: %s", message_id, stage, error)
     try:
-        with ACTIVE_RUNS_LOCK:
-            if is_run_cancelled(message_id):
+        run = active_run(message_id)
+        lock = run['state_lock'] if run else threading.RLock()
+        with lock:
+            if run and run['cancel_requested']:
                 return
-            with closing(sqlite3.connect(DB_PATH, timeout=10)) as db, db:
+            with closing(connect_workbench(timeout=10)) as db, db:
                 db.execute("UPDATE workbench_messages SET status='failed',content=content || ? WHERE id=? AND status IN ('pending','completed')",
-                           ("\n\n[Collaboration " + stage + "] " + str(error)[:4000],message_id))
+                           ("\n\n[Collaboration " + stage + "] " + format_execution_error(error)[:4000],message_id))
     except Exception:
         logging.exception("Could not persist entry failure for message %s", message_id)
 
@@ -2321,7 +2480,16 @@ class ChatHandler(BaseHTTPRequestHandler):
                 })
                 return
 
-        connection = sqlite3.connect(DB_PATH, timeout=10)
+        with ACTIVE_RUNS_LOCK:
+            active_run = next(
+                (
+                    run for run in ACTIVE_RUNS.values()
+                    if run["conversation_id"] == conversation_id
+                    and run["agent_id"] in recipients
+                ),
+                None,
+            )
+        connection = connect_workbench(timeout=10)
         try:
             connection.execute("BEGIN IMMEDIATE")
             recipient_placeholders = ", ".join("?" for _ in recipients)
@@ -2339,15 +2507,6 @@ class ChatHandler(BaseHTTPRequestHandler):
                     "error": label + " 正在处理这段对话。请等待它完成，或只 @ 另一个 Agent。"
                 })
                 return
-            with ACTIVE_RUNS_LOCK:
-                active_run = next(
-                    (
-                        run for run in ACTIVE_RUNS.values()
-                        if run["conversation_id"] == conversation_id
-                        and run["agent_id"] in recipients
-                    ),
-                    None,
-                )
             if active_run:
                 connection.rollback()
                 label = "Codex" if active_run["agent_id"] == "codex" else "DeepSeek Harness"
@@ -2401,14 +2560,55 @@ class ChatHandler(BaseHTTPRequestHandler):
         print("[%s] %s" % (self.log_date_time_string(), format % args))
 
 
+@contextmanager
+def startup_server(port, *, allow_legacy=False):
+    """Lock the database before binding or performing any persistent changes."""
+    global DB_PATH, SERVICE_INSTANCE_ID
+    with ServiceInstanceLock(DB_PATH) as instance:
+        DB_PATH = instance.database_path
+        SERVICE_INSTANCE_ID = uuid.uuid4().hex
+        # Construct without binding so every failure path can close the socket.
+        server = None
+        try:
+            server = ThreadingHTTPServer(("127.0.0.1", port), ChatHandler, bind_and_activate=False)
+            server.server_bind()
+            server.server_activate()
+            import agent_bridge
+            agent_bridge.DB_PATH = DB_PATH
+            agent_bridge.initialize_db(allow_legacy=allow_legacy)
+            initialize_workbench_tables()
+            collaboration_service().store.interrupt_running()
+            try:
+                occupancy = read_occupancy_snapshot(DB_PATH, current_instance_id=SERVICE_INSTANCE_ID)
+            except InspectionQueryError:
+                # A failed diagnostic is not an empty/safe snapshot. Admission
+                # remains transactionally checked on every execution request.
+                logging.error('[查询失败] 启动占用摘要不可用；请检查数据库及迁移状态，未判定为无占用。')
+            else:
+                blocked = sum(item['blocked'] for item in occupancy)
+                reviews = sum(item['classification'] == 'session_needs_validation' for item in occupancy)
+                logging.log(logging.WARNING if blocked else logging.INFO,
+                            '6A启动只读摘要：记录阻断域=%s，会话待校验=%s；退出情况未知；摘要不用于准入。',
+                            blocked, reviews)
+            # This snapshot is local diagnostics only, never an admission cache.
+            yield server
+        finally:
+            SERVICE_INSTANCE_ID = None
+            if server is not None:
+                server.server_close()
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description="启动本地 Agent 工作台并接入 Codex CLI 与 DeepSeek Harness")
     parser.add_argument("--port", type=int, default=8765, help="本地网页端口（默认：8765）")
+    parser.add_argument("--allow-legacy-upgrade", action="store_true", help="Confirm all legacy writers are stopped before upgrading")
     args = parser.parse_args()
-    initialize_workbench_tables()
-    collaboration_service().store.interrupt_running()
-    server = ThreadingHTTPServer(("127.0.0.1", args.port), ChatHandler)
-    print(f"Agent 工作台已启动：http://127.0.0.1:{args.port}")
+    with startup_server(args.port, allow_legacy=args.allow_legacy_upgrade) as server:
+        serve(server, args.port)
+
+
+def serve(server, port):
+    print(f"Agent 工作台已启动：http://127.0.0.1:{port}")
     print(f"共享数据库：{DB_PATH}")
     print("按 Ctrl+C 停止。")
     try:
@@ -2416,10 +2616,7 @@ def main() -> None:
     except KeyboardInterrupt:
         print("\n正在关闭 Agent 工作台……")
     finally:
-        try:
-            stop_all_active_runs()
-        finally:
-            server.server_close()
+        stop_all_active_runs()
 
 
 if __name__ == "__main__":

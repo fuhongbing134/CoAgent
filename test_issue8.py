@@ -23,11 +23,11 @@ class Issue8Tests(unittest.TestCase):
         completed.pop('plan')
         replies = iter([completed, amended, completed, completed])
         roles = []
-        def invoke(job, agent, role, prompt):
+        def invoke(job, agent, role, prompt, **kwargs):
             roles.append(role)
             return 'completed', 'Result\n```agent-collaboration\n' + json.dumps(next(replies)) + '\n```'
         with tempfile.TemporaryDirectory() as root:
-            service = CollaborationService(Path(root)/'test.db', invoke, lambda job: None)
+            service = CollaborationService(Path(root)/'test.db', invoke, lambda job: True)
             service.register_entry('job', 'chat', 'codex', 'Request', item, 'Plan')
             service.drive('job')
             self.assertEqual(service.store.snapshot('job')['phase'], 'completed')
@@ -39,11 +39,11 @@ class Issue8Tests(unittest.TestCase):
         item['status'] = 'continue_work'
         item['plan']['tasks'] = [dict(task_id='external', agent_id='deepseek-harness', instruction='Review', depends_on=[])]
         calls = []
-        def invoke(*args):
+        def invoke(*args, **kwargs):
             calls.append(args)
             return 'completed', 'No change\n```agent-collaboration\n' + json.dumps(item) + '\n```'
         with tempfile.TemporaryDirectory() as root:
-            service = CollaborationService(Path(root)/'test.db', invoke, lambda job: None)
+            service = CollaborationService(Path(root)/'test.db', invoke, lambda job: True)
             service.register_entry('job', 'chat', 'codex', 'Request', item, 'Plan')
             service.drive('job')
             self.assertEqual(len(calls), 1)
@@ -53,7 +53,7 @@ class Issue8Tests(unittest.TestCase):
         item = payload()
         item['status'] = 'continue_work'
         with tempfile.TemporaryDirectory() as root:
-            service = CollaborationService(Path(root)/'test.db', lambda *a: None, lambda job: None)
+            service = CollaborationService(Path(root)/'test.db', lambda *a, **kw: None, lambda job: True)
             service.register_entry('job', 'chat', 'codex', 'Request', item, 'Plan')
             service.store.reserve('job', [('call', 'codex', 'owner')])
             bad = copy.deepcopy(item)

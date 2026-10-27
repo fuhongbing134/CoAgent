@@ -4,7 +4,10 @@ import json
 import sqlite3
 from contextlib import closing, contextmanager
 from concurrent.futures import ThreadPoolExecutor
+from pathlib import Path
 
+from database_schema import ensure_schema, require_current
+from migration_barrier import MigrationBarrier
 from agent_registry import default_registry
 from collaboration_protocol import validate_plan
 
@@ -13,26 +16,14 @@ TERMINAL = {"completed", "failed", "timeout", "cancelled"}
 
 class BatchStore:
     def __init__(self, path, registry=None):
-        self.path = str(path)
+        self.path = str(Path(path).expanduser().resolve())
         self.registry = registry or default_registry()
-        with closing(sqlite3.connect(self.path)) as db:
-            db.executescript("""
-                CREATE TABLE IF NOT EXISTS collab_jobs (
-                    job_id TEXT PRIMARY KEY, request TEXT NOT NULL, plan TEXT NOT NULL,
-                    stopped INTEGER NOT NULL DEFAULT 0);
-                CREATE TABLE IF NOT EXISTS collab_batches (
-                    job_id TEXT NOT NULL, batch_id TEXT NOT NULL, consumed INTEGER NOT NULL DEFAULT 0,
-                    PRIMARY KEY(job_id,batch_id));
-                CREATE TABLE IF NOT EXISTS collab_tasks (
-                    job_id TEXT NOT NULL, task_id TEXT NOT NULL, agent_id TEXT NOT NULL,
-                    instruction TEXT NOT NULL, deps TEXT NOT NULL, batch_id TEXT,
-                    state TEXT NOT NULL DEFAULT 'pending', result TEXT NOT NULL DEFAULT '',
-                    PRIMARY KEY(job_id,task_id));
-            """)
+        ensure_schema(self.path)
 
     @contextmanager
     def transaction(self):
-        with closing(sqlite3.connect(self.path, timeout=10)) as db:
+        with MigrationBarrier(self.path), closing(sqlite3.connect(self.path, timeout=10)) as db:
+            require_current(db)
             db.row_factory = sqlite3.Row
             with db:
                 db.execute("BEGIN IMMEDIATE")

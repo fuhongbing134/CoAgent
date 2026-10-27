@@ -41,12 +41,14 @@ class LifecycleTests(unittest.TestCase):
 
     def test_budget_preserves_owner_and_final_slots(self):
         self.store.initialize("job", round_limit=100)  # reopen never resets usage or limit
-        calls = [(str(i), "deepseek-harness", "collaborator") for i in range(6)]
+        limit = self.store.snapshot("job")["round_limit"]
+        self.assertEqual(limit, 20)
+        calls = [(str(i), "deepseek-harness", "collaborator") for i in range(limit - 2)]
         with self.assertRaises(ValueError):
             self.store.reserve("job", calls)
         self.assertEqual(self.store.snapshot("job")["used"], 1)
-        self.assertTrue(self.store.reserve("job", calls[:5]))
-        self.assertEqual(self.store.snapshot("job")["used"], 6)
+        self.assertTrue(self.store.reserve("job", calls[:-1]))
+        self.assertEqual(self.store.snapshot("job")["used"], limit - 2)
 
     def test_middle_final_identity_does_not_deliver(self):
         self.store.reserve("job", [("review", "deepseek-harness", "collaborator")])

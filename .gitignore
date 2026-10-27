@@ -21,3 +21,5 @@ last_answer.txt
 Codex.txt
 deepseek-harness.txt
 write-probe-*.tmp
+.dsh-tmp/
+probe_evidence/

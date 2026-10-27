@@ -10,8 +10,18 @@ from unittest.mock import patch
 import web_chat as web
 from collaboration_entry import parse_entry_response
 from collaboration_protocol import validate_payload
+from managed_process import ProcessResult
 from collaboration_service import CollaborationService
 from test_collaboration_foundation import payload
+
+
+def scripted_worker(worker):
+    # Protocol/persistence fixture only: injected evidence is NOT real CLI proof.
+    def wrapped(*args):
+        execution = web.active_run(args[2])['execution']
+        execution.result = ProcessResult('completed', 0, b'', b'', 'confirmed')
+        return web.structured_worker(worker)(*args)
+    return wrapped
 
 
 def envelope(item):
@@ -38,12 +48,23 @@ class DirectAnswerTests(unittest.TestCase):
         self.path = Path(self.temp.name) / 'isolated.db'
 
     def service(self, invoke):
-        return CollaborationService(self.path, invoke, lambda job: None)
+        return CollaborationService(self.path, invoke, lambda job: True)
 
     def clarify(self, service):
         item = question()
         service.register_entry('job', 'chat', 'codex', 'Request', item, envelope(item))
         service.store.operate('job', 'chat', 'a1', 'answer', 'Scope clarified')
+
+    def test_entry_plan_requirement_unchanged(self):
+        self.assertEqual(parse_entry_response(envelope(answer()))[1]['plan']['tasks'], [])
+        missing = answer()
+        del missing['plan']
+        with self.assertRaisesRegex(ValueError, 'initial plan required'):
+            parse_entry_response(envelope(missing))
+        nonempty = payload()
+        del nonempty['plan']['tasks'][0]['depends_on']
+        with self.assertRaisesRegex(ValueError, 'planning-only'):
+            parse_entry_response(envelope(nonempty))
 
     def test_contract_and_registration_defense(self):
         self.assertEqual(parse_entry_response(envelope(answer()))[1]['plan']['tasks'], [])
@@ -61,7 +82,7 @@ class DirectAnswerTests(unittest.TestCase):
         item['plan']['tasks'][0]['task_id'] = '__clarify_entry__'
         with self.assertRaises(ValueError):
             validate_payload(item, role='entry')
-        service = self.service(lambda *a: self.fail('must not invoke'))
+        service = self.service(lambda *a, **kw: self.fail('must not invoke'))
         with self.assertRaises(ValueError):
             service.register_entry('job', 'chat', 'codex', 'Request', answer(), envelope(answer()))
         with service.store.transaction() as db:
@@ -71,13 +92,13 @@ class DirectAnswerTests(unittest.TestCase):
         for final in ('codex', 'deepseek-harness'):
             with self.subTest(final=final), tempfile.TemporaryDirectory() as root:
                 calls = []
-                def invoke(job, agent, role, prompt):
+                def invoke(job, agent, role, prompt, **kwargs):
                     calls.append((agent, role))
                     item = answer(final)
                     if role == 'final':
                         item.pop('plan')
                     return 'completed', envelope(item)
-                service = CollaborationService(Path(root)/'db', invoke, lambda job: None)
+                service = CollaborationService(Path(root)/'db', invoke, lambda job: True)
                 self.clarify(service)
                 service.drive('job')
                 self.assertEqual(service.store.snapshot('job')['phase'], 'completed')
@@ -92,7 +113,7 @@ class DirectAnswerTests(unittest.TestCase):
 
     def test_normal_replan_still_executes_task(self):
         roles = []
-        def invoke(job, agent, role, prompt):
+        def invoke(job, agent, role, prompt, **kwargs):
             roles.append(role)
             item = payload()
             if len(roles) == 1:
@@ -110,7 +131,7 @@ class DirectAnswerTests(unittest.TestCase):
         self.assertEqual(service.material('job')[1][0]['task_id'], 'research')
 
     def test_invalid_placeholder_source_never_invokes(self):
-        service = self.service(lambda *a: self.fail('unverified source must not run'))
+        service = self.service(lambda *a, **kw: self.fail('unverified source must not run'))
         self.clarify(service)
         with service.store.transaction() as db:
             db.execute("UPDATE collab_calls SET text='unverifiable' WHERE call_id='entry'")
@@ -118,7 +139,7 @@ class DirectAnswerTests(unittest.TestCase):
         self.assertEqual(service.store.snapshot('job')['phase'], 'failed')
 
     def test_actual_execution_trace_disqualifies_placeholder(self):
-        service = self.service(lambda *a: self.fail('must not run'))
+        service = self.service(lambda *a, **kw: self.fail('must not run'))
         self.clarify(service)
         with service.store.transaction() as db:
             db.execute("INSERT INTO collab_calls(job_id,call_id,agent_id,role,state) VALUES ('job','prior','codex','collaborator','completed')")
@@ -127,7 +148,7 @@ class DirectAnswerTests(unittest.TestCase):
 
     def test_quota_delivery_precedes_cancelled_placeholder(self):
         calls = []
-        def invoke(job, agent, role, prompt):
+        def invoke(job, agent, role, prompt, **kwargs):
             calls.append(role)
             item = answer()
             item.pop('plan')
@@ -145,7 +166,7 @@ class DirectAnswerTests(unittest.TestCase):
         self.assertEqual(service.material('job')[1][0]['state'], 'cancelled')
 
     def test_stop_during_replan_is_not_overwritten(self):
-        def invoke(*args):
+        def invoke(*args, **kwargs):
             service.store.operate('job', 'chat', 'stop', 'stop')
             return 'completed', envelope(answer())
         service = self.service(invoke)
@@ -156,7 +177,7 @@ class DirectAnswerTests(unittest.TestCase):
 
     def test_new_material_prevents_stale_completion(self):
         calls = []
-        def invoke(*args):
+        def invoke(*args, **kwargs):
             calls.append(1)
             if len(calls) == 1:
                 service.store.operate('job', 'chat', 'extra', 'append', 'New scope')
@@ -168,7 +189,7 @@ class DirectAnswerTests(unittest.TestCase):
         self.assertEqual(service.store.snapshot('job')['phase'], 'completed')
 
     def test_replan_atomic_rollback(self):
-        service = self.service(lambda *a: ('completed', envelope(answer())))
+        service = self.service(lambda *a, **kw: ('completed', envelope(answer())))
         self.clarify(service)
         with service.store.transaction() as db:
             db.execute("CREATE TRIGGER reject_finish BEFORE UPDATE OF phase ON collab_lifecycle WHEN NEW.phase='completed' BEGIN SELECT RAISE(ABORT,'injected failure'); END")
@@ -182,6 +203,9 @@ class DirectAnswerTests(unittest.TestCase):
         self.patcher = patch.object(web, 'DB_PATH', self.path)
         self.patcher.start()
         self.addCleanup(self.patcher.stop)
+        identity = patch.object(web, 'SERVICE_INSTANCE_ID', 'isolated-test-instance')
+        identity.start()
+        self.addCleanup(identity.stop)
         self.path.touch()
         web.initialize_workbench_tables()
         with closing(sqlite3.connect(self.path)) as db, db:
@@ -207,14 +231,14 @@ class DirectAnswerTests(unittest.TestCase):
             update(1, envelope(answer()), 'completed')
             self.assertEqual(self.web_row()[1], 'pending')
         mention = '@Codex' if agent == 'codex' else '@DeepSeek Harness'
-        with patch.object(web, worker_name, worker), patch.object(web, 'collaboration_service', side_effect=AssertionError('no execution service')):
+        with patch.object(web, worker_name, scripted_worker(worker)), patch.object(web, 'collaboration_service', side_effect=AssertionError('no execution service')):
             web.run_agent_task(agent, 'chat', mention + ' Q?', 1, 0)
             web.run_agent_task(agent, 'chat', mention + ' Q?', 1, 0)
         self.assertEqual(calls, [1])
         self.assertEqual(self.web_row()[1], 'completed')
         with closing(sqlite3.connect(self.path)) as db, db:
             self.assertEqual(db.execute('SELECT count(*) FROM collaboration_entry_results').fetchone()[0], 1)
-            self.assertIsNone(db.execute("SELECT name FROM sqlite_master WHERE name='collab_jobs'").fetchone())
+            self.assertEqual(db.execute("SELECT count(*) FROM collab_jobs").fetchone()[0], 0)
 
     def test_production_schema_rejects_running_and_survives_reinitialize(self):
         self.setup_web()
@@ -239,7 +263,7 @@ class DirectAnswerTests(unittest.TestCase):
                     def worker(*args):
                         if outcome != 'no_reply':
                             update(1, envelope(answer()), outcome)
-                    with patch.object(web, name, worker), patch.object(web, 'collaboration_service', side_effect=AssertionError('no execution')):
+                    with patch.object(web, name, scripted_worker(worker)), patch.object(web, 'collaboration_service', side_effect=AssertionError('no execution')):
                         web.run_agent_task(agent, 'chat', mention + ' Q?', 1, 0)
                     self.assertEqual(self.web_row()[1], 'cancelled' if outcome == 'cancelled' else 'failed')
                     with closing(sqlite3.connect(self.path)) as db:
@@ -250,7 +274,7 @@ class DirectAnswerTests(unittest.TestCase):
         def worker(*args):
             web.stop_active_run(1)
             web.update_workbench_message(1, envelope(answer()), 'completed')
-        with patch.object(web, 'run_codex', worker):
+        with patch.object(web, 'run_codex', scripted_worker(worker)):
             web.run_agent_task('codex', 'chat', '@Codex Q?', 1, 0)
         self.assertEqual(self.web_row()[1], 'cancelled')
 
@@ -263,7 +287,7 @@ class DirectAnswerTests(unittest.TestCase):
             return result
         def worker(*args):
             web.update_codex_message(1, envelope(answer()), 'completed')
-        with patch.object(web, 'run_codex', worker), patch.object(web, 'parse_entry_response', parse_then_stop):
+        with patch.object(web, 'run_codex', scripted_worker(worker)), patch.object(web, 'parse_entry_response', parse_then_stop):
             web.run_agent_task('codex', 'chat', '@Codex Q?', 1, 0)
         self.assertEqual(self.web_row()[1], 'cancelled')
         with closing(sqlite3.connect(self.path)) as db:
@@ -271,12 +295,12 @@ class DirectAnswerTests(unittest.TestCase):
 
     def test_web_execution_plan_still_registers(self):
         self.setup_web()
-        service = self.service(lambda *a: self.fail('kick is captured; no CLI'))
+        service = self.service(lambda *a, **kw: self.fail('kick is captured; no CLI'))
         item = payload()
         item['status'] = 'continue_work'
         def worker(*args):
             web.update_codex_message(1, envelope(item), 'completed')
-        with patch.object(web, 'run_codex', worker), patch.object(web, 'collaboration_service', return_value=service), patch.object(service, 'kick') as kick:
+        with patch.object(web, 'run_codex', scripted_worker(worker)), patch.object(web, 'collaboration_service', return_value=service), patch.object(service, 'kick') as kick:
             web.run_agent_task('codex', 'chat', '@Codex Work', 1, 0)
         kick.assert_called_once_with('entry-1')
         self.assertEqual(service.store.snapshot('entry-1')['phase'], 'working')
@@ -286,7 +310,7 @@ class DirectAnswerTests(unittest.TestCase):
         self.setup_web()
         def worker(*args):
             web.update_codex_message(1, envelope(payload()), 'completed')
-        with patch.object(web, 'run_codex', worker):
+        with patch.object(web, 'run_codex', scripted_worker(worker)):
             web.run_agent_task('codex', 'chat', '@Codex Q?', 1, 0)
         content, state = self.web_row()
         self.assertEqual(state, 'failed')
@@ -296,11 +320,10 @@ class DirectAnswerTests(unittest.TestCase):
     def test_web_persistence_failure_rolls_back_success(self):
         self.setup_web()
         with closing(sqlite3.connect(self.path)) as db, db:
-            db.execute('CREATE TABLE collaboration_entry_results(message_id INTEGER PRIMARY KEY, conversation_id TEXT, payload_json TEXT)')
             db.execute("CREATE TRIGGER fail_insert BEFORE INSERT ON collaboration_entry_results BEGIN SELECT RAISE(ABORT,'injected'); END")
         def worker(*args):
             web.update_codex_message(1, envelope(answer()), 'completed')
-        with patch.object(web, 'run_codex', worker):
+        with patch.object(web, 'run_codex', scripted_worker(worker)):
             web.run_agent_task('codex', 'chat', '@Codex Q?', 1, 0)
         self.assertEqual(self.web_row()[1], 'failed')
         self.assertIn('persistence failed', self.web_row()[0])
@@ -313,7 +336,7 @@ class DirectAnswerTests(unittest.TestCase):
         item['status'] = 'continue_work'
         def worker(*args):
             web.update_codex_message(1, envelope(item), 'completed')
-        with patch.object(web, 'run_codex', worker), patch.object(web, 'collaboration_service', side_effect=RuntimeError('register unavailable')):
+        with patch.object(web, 'run_codex', scripted_worker(worker)), patch.object(web, 'collaboration_service', side_effect=RuntimeError('register unavailable')):
             web.run_agent_task('codex', 'chat', '@Codex Work', 1, 0)
         self.assertEqual(self.web_row()[1], 'failed')
         self.assertIn('registration/dispatch failed', self.web_row()[0])

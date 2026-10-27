@@ -20,6 +20,7 @@ def _text(value):
 
 
 def validate_plan(plan, registry, allow_empty=False):
+    """Validate a plan, normalizing omitted dependencies in place."""
     _keys(plan, {"owner_id", "final_responder_id", "tasks"})
     registry.require(plan["owner_id"])
     registry.require(plan["final_responder_id"])
@@ -28,11 +29,11 @@ def validate_plan(plan, registry, allow_empty=False):
         raise ValueError("tasks must be a nonempty list")
     graph = {}
     for task in tasks:
-        _keys(task, {"task_id", "agent_id", "instruction", "depends_on"})
+        _keys(task, {"task_id", "agent_id", "instruction"}, {"depends_on"})
         _text(task["task_id"])
         _text(task["instruction"])
         registry.require(task["agent_id"])
-        deps = task["depends_on"]
+        deps = task.setdefault("depends_on", [])
         if not isinstance(deps, list) or any(not isinstance(d, str) or not d.strip() for d in deps):
             raise ValueError("depends_on must be a list of task IDs")
         if len(set(deps)) != len(deps) or task["task_id"] in graph:
@@ -59,6 +60,7 @@ def validate_plan(plan, registry, allow_empty=False):
 
 def validate_payload(payload, *, registry=None, require_plan=False, invitation_ids=(), role="owner", phase="collaboration"):
     """invitation_ids are supplied by the later terminal-mention parser, not inferred here."""
+    payload = copy.deepcopy(payload)
     registry = registry or default_registry()
     if role not in {"entry", "owner", "collaborator", "final"} or phase not in {"collaboration", "final_delivery"}:
         raise ValueError("invalid invocation context")
@@ -105,7 +107,7 @@ def validate_payload(payload, *, registry=None, require_plan=False, invitation_i
         raise ValueError("only entry/owner may invite")
     if phase == "final_delivery" and status != "completed":
         raise ValueError("final delivery must complete without further collaboration")
-    return copy.deepcopy(payload)
+    return payload
 
 
 def loads_payload(text, **kwargs):

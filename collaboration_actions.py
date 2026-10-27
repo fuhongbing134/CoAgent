@@ -10,21 +10,6 @@ from collaboration_lifecycle import LifecycleStore
 class ActionStore(LifecycleStore):
     def __init__(self, path, registry=None):
         super().__init__(path, registry)
-        with closing(sqlite3.connect(self.path)) as db:
-            db.executescript("""
-                CREATE TABLE IF NOT EXISTS collab_bindings (
-                    job_id TEXT PRIMARY KEY, conversation_id TEXT NOT NULL);
-                CREATE TABLE IF NOT EXISTS collab_operations (
-                    job_id TEXT NOT NULL, operation_id TEXT NOT NULL, body TEXT NOT NULL,
-                    PRIMARY KEY(job_id,operation_id));
-                CREATE TABLE IF NOT EXISTS collab_events (
-                    job_id TEXT NOT NULL, operation_id TEXT NOT NULL, kind TEXT NOT NULL,
-                    state TEXT NOT NULL DEFAULT 'pending',
-                    PRIMARY KEY(job_id,operation_id));
-                CREATE TABLE IF NOT EXISTS collab_user_updates (
-                    job_id TEXT NOT NULL, operation_id TEXT NOT NULL, content TEXT NOT NULL,
-                    PRIMARY KEY(job_id,operation_id));
-            """)
 
     def bind(self, job_id, conversation_id):
         if not isinstance(conversation_id, str) or not conversation_id.strip():

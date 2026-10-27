@@ -11,22 +11,8 @@ from collaboration_protocol import validate_payload
 class LifecycleStore(BatchStore):
     def __init__(self, path, registry=None):
         super().__init__(path, registry)
-        with closing(sqlite3.connect(self.path)) as db:
-            db.executescript("""
-                CREATE TABLE IF NOT EXISTS collab_lifecycle (
-                    job_id TEXT PRIMARY KEY, phase TEXT NOT NULL DEFAULT 'working',
-                    round_limit INTEGER NOT NULL DEFAULT 8, used INTEGER NOT NULL DEFAULT 0,
-                    questions TEXT NOT NULL DEFAULT '[]', final_text TEXT NOT NULL DEFAULT '',
-                    reason TEXT NOT NULL DEFAULT '');
-                CREATE TABLE IF NOT EXISTS collab_calls (
-                    job_id TEXT NOT NULL, call_id TEXT NOT NULL, agent_id TEXT NOT NULL,
-                    role TEXT NOT NULL, state TEXT NOT NULL DEFAULT 'reserved',
-                    text TEXT NOT NULL DEFAULT '', payload TEXT,
-                    PRIMARY KEY(job_id,call_id));
-                CREATE TABLE IF NOT EXISTS collab_authorizations(job_id TEXT PRIMARY KEY,targets TEXT NOT NULL);
-            """)
 
-    def initialize(self, job_id, *, round_limit=8, entry_rounds=1):
+    def initialize(self, job_id, *, round_limit=20, entry_rounds=1):
         if type(round_limit) is not int or round_limit < 2 or type(entry_rounds) is not int or not 0 <= entry_rounds < round_limit:
             raise ValueError("invalid round budget")
         with self.transaction() as db:

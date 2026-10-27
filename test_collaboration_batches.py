@@ -1,5 +1,6 @@
 """Real SQLite, threads and OS child processes; no Agent response substitution."""
 
+import json
 import subprocess
 import sys
 import tempfile
@@ -28,6 +29,22 @@ class BatchTests(unittest.TestCase):
 
     def open(self):
         return self.store.open_batch("job", "first", ["a", "b"], ["deepseek-harness"], "codex")
+
+    def test_omitted_dependencies_create_and_deduplicate(self):
+        omitted = plan()
+        del omitted["tasks"][0]["depends_on"]
+        del omitted["tasks"][1]["depends_on"]
+        self.assertTrue(self.store.create("defaulted", "Request", omitted))
+        self.assertEqual(omitted, plan())
+        self.assertFalse(self.store.create("defaulted", "Request", plan()))
+        omitted_again = plan()
+        del omitted_again["tasks"][0]["depends_on"]
+        self.assertFalse(self.store.create("defaulted", "Request", omitted_again))
+        with self.store.transaction() as db:
+            saved = json.loads(db.execute("SELECT plan FROM collab_jobs WHERE job_id='defaulted'").fetchone()[0])
+            deps = db.execute("SELECT deps FROM collab_tasks WHERE job_id='defaulted' AND task_id='a'").fetchone()[0]
+        self.assertEqual(saved, plan())
+        self.assertEqual(json.loads(deps), [])
 
     def test_invitation_boundaries(self):
         self.assertEqual(terminal_invitation("Prose @Codex\n@DeepSeek Harness @Codex @Codex\n"), ("deepseek-harness", "codex"))

@@ -18,7 +18,7 @@ class ServiceTests(unittest.TestCase):
         self.path = Path(self.temp.name) / "service.db"
 
     @staticmethod
-    def non_protocol_process(job, agent, role, prompt):
+    def non_protocol_process(job, agent, role, prompt, **kwargs):
         # Actual unrelated program output verifies rejection, not Agent semantics.
         process = subprocess.run([sys.executable,"-c","import sys; print(sys.version_info.major)"],
                                  capture_output=True,text=True,timeout=10)
@@ -27,10 +27,30 @@ class ServiceTests(unittest.TestCase):
     @staticmethod
     def no_process_to_cancel(job):
         # These tests have no running child when invoking cancellation events.
-        return
+        return True
 
     def service(self):
         return CollaborationService(self.path,self.non_protocol_process,self.no_process_to_cancel)
+
+    def test_append_plan_normalizes_existing_and_new_dependencies(self):
+        service = self.service()
+        original = payload()["plan"]
+        service.store.create("job", "Request", original)
+        service.store.initialize("job")
+        amended = payload()["plan"]
+        del amended["tasks"][0]["depends_on"]
+        amended["tasks"].append(dict(task_id="independent", agent_id="codex", instruction="Inspect"))
+        service.append_plan("job", amended)
+        self.assertEqual(amended["tasks"][0]["depends_on"], [])
+        self.assertEqual(amended["tasks"][-1]["depends_on"], [])
+        repeated = payload()["plan"]
+        repeated["tasks"].append(dict(task_id="independent", agent_id="codex", instruction="Inspect", depends_on=[]))
+        service.append_plan("job", repeated)
+        with service.store.transaction() as db:
+            saved = json.loads(db.execute("SELECT plan FROM collab_jobs WHERE job_id='job'").fetchone()[0])
+            count = db.execute("SELECT count(*) FROM collab_tasks WHERE job_id='job'").fetchone()[0]
+        self.assertEqual(saved, repeated)
+        self.assertEqual(count, 3)
 
     def test_legacy_entry_fails_without_execution(self):
         service = self.service()
@@ -74,6 +94,7 @@ class ServiceTests(unittest.TestCase):
         def cancel(job):
             process.terminate()
             process.wait(timeout=5)
+            return True
         service = CollaborationService(self.path,self.non_protocol_process,cancel)
         item = payload()
         item["status"] = "continue_work"

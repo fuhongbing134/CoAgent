@@ -87,6 +87,38 @@ class FoundationTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             validate_payload(original, require_plan=True)
 
+    def test_omitted_dependencies_normalize_without_mutating_payload(self):
+        explicit = payload()
+        omitted = copy.deepcopy(explicit)
+        del omitted["plan"]["tasks"][0]["depends_on"]
+        before = copy.deepcopy(omitted)
+        result = validate_payload(omitted)
+        self.assertEqual(result, validate_payload(explicit))
+        self.assertEqual(omitted, before)
+        result["plan"]["tasks"][0]["depends_on"].append("changed")
+        self.assertEqual(omitted, before)
+        self.assertEqual(loads_payload(json.dumps(before))["plan"], explicit["plan"])
+
+    def test_invalid_dependencies_still_rejected_without_input_mutation(self):
+        for deps in (None, "research", {}, ["missing"], ["review"],
+                     ["research", "research"]):
+            item = payload()
+            del item["plan"]["tasks"][0]["depends_on"]
+            item["plan"]["tasks"][1]["depends_on"] = deps
+            before = copy.deepcopy(item)
+            with self.subTest(deps=deps), self.assertRaises(ValueError):
+                validate_payload(item)
+            self.assertEqual(item, before)
+        item = payload()
+        item["plan"]["tasks"][0]["depends_on"] = ["review"]
+        with self.assertRaisesRegex(ValueError, "cyclic"):
+            validate_payload(item)
+        item = payload()
+        del item["plan"]["tasks"][0]["depends_on"]
+        item["plan"]["tasks"][0]["unknown"] = True
+        with self.assertRaises(ValueError):
+            validate_payload(item)
+
     def test_statuses_and_context(self):
         item = payload()
         item["status"] = "waiting_user"

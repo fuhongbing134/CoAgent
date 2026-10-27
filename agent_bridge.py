@@ -7,11 +7,13 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Iterator
 
+from database_schema import ensure_schema, require_current
+from migration_barrier import MigrationBarrier
 from mcp.server.fastmcp import FastMCP
 
 
 PROJECT_DIR = Path(__file__).resolve().parent
-DB_PATH = Path(os.environ.get("AGENT_BRIDGE_DB", PROJECT_DIR / "agent_bridge.db"))
+DB_PATH = Path(os.environ.get("AGENT_BRIDGE_DB", PROJECT_DIR / "agent_bridge.db")).expanduser().resolve()
 AGENT_ID = os.environ.get("AGENT_BRIDGE_AGENT_ID", "unknown-agent")
 MAX_MESSAGE_LENGTH = 20_000
 
@@ -23,54 +25,26 @@ def utc_now() -> str:
 
 
 def connect_db() -> sqlite3.Connection:
-    DB_PATH.parent.mkdir(parents=True, exist_ok=True)
     connection = sqlite3.connect(DB_PATH, timeout=10)
     connection.row_factory = sqlite3.Row
-    connection.execute("PRAGMA journal_mode = WAL")
     connection.execute("PRAGMA foreign_keys = ON")
     return connection
 
 
 @contextmanager
 def database() -> Iterator[sqlite3.Connection]:
-    connection = connect_db()
-    try:
-        with connection:
-            yield connection
-    finally:
-        connection.close()
+    with MigrationBarrier(DB_PATH):
+        connection = connect_db()
+        try:
+            require_current(connection)
+            with connection:
+                yield connection
+        finally:
+            connection.close()
 
 
-def initialize_db() -> None:
-    with database() as connection:
-        connection.executescript(
-            """
-            CREATE TABLE IF NOT EXISTS agents (
-                agent_id TEXT PRIMARY KEY,
-                name TEXT NOT NULL,
-                vendor TEXT NOT NULL,
-                model TEXT NOT NULL,
-                role TEXT NOT NULL,
-                registered_at TEXT NOT NULL,
-                last_seen TEXT NOT NULL
-            );
-
-            CREATE TABLE IF NOT EXISTS messages (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                conversation_id TEXT NOT NULL,
-                sender_id TEXT NOT NULL REFERENCES agents(agent_id),
-                recipient_id TEXT NOT NULL REFERENCES agents(agent_id),
-                content TEXT NOT NULL,
-                created_at TEXT NOT NULL,
-                read_at TEXT
-            );
-
-            CREATE INDEX IF NOT EXISTS idx_messages_inbox
-                ON messages(recipient_id, conversation_id, id);
-            CREATE INDEX IF NOT EXISTS idx_messages_conversation
-                ON messages(conversation_id, id);
-            """
-        )
+def initialize_db(*, allow_legacy=False) -> None:
+    ensure_schema(DB_PATH, allow_legacy=allow_legacy)
 
 
 def touch_agent(connection: sqlite3.Connection) -> None:
@@ -193,7 +167,10 @@ def read_conversation(conversation_id: str = "default", limit: int = 100) -> lis
     return [dict(row) for row in reversed(rows)]
 
 
-initialize_db()
-
 if __name__ == "__main__":
+    import argparse
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--allow-legacy-upgrade', action='store_true', help='Confirm all legacy writers are stopped')
+    args = parser.parse_args()
+    initialize_db(allow_legacy=args.allow_legacy_upgrade)
     mcp.run(transport="stdio")
