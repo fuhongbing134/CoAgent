@@ -7,6 +7,7 @@ from agent_registry import default_registry
 
 STATUSES = {"continue_work", "request_collaboration", "completed", "waiting_user", "blocked"}
 HANDOFF_FIELDS = {"original_question", "response_or_changes", "evidence", "rejected_alternatives", "uncertainties", "expected_action"}
+MISSING_PLAN = object()
 
 
 def _keys(value, required, optional=()):
@@ -19,8 +20,8 @@ def _text(value):
         raise ValueError("expected nonempty text")
 
 
-def validate_plan(plan, registry, allow_empty=False):
-    """Validate a plan, normalizing omitted dependencies in place."""
+def _validate_plan_structure(plan, registry, allow_empty=False):
+    """Validate fields and normalize dependencies, without resolving their IDs."""
     _keys(plan, {"owner_id", "final_responder_id", "tasks"})
     registry.require(plan["owner_id"])
     registry.require(plan["final_responder_id"])
@@ -39,6 +40,12 @@ def validate_plan(plan, registry, allow_empty=False):
         if len(set(deps)) != len(deps) or task["task_id"] in graph:
             raise ValueError("duplicate task/dependency")
         graph[task["task_id"]] = deps
+    return graph
+
+
+def validate_plan(plan, registry, allow_empty=False):
+    """Validate a complete plan, normalizing omitted dependencies in place."""
+    graph = _validate_plan_structure(plan, registry, allow_empty)
     visited, active = set(), set()
 
     def visit(task_id):
@@ -56,6 +63,33 @@ def validate_plan(plan, registry, allow_empty=False):
 
     for task_id in graph:
         visit(task_id)
+
+
+def normalize_owner_plan(raw_plan, current_plan, *, status, registry=None):
+    """Return a complete append-only plan without mutating either input.
+
+    MISSING_PLAN distinguishes omission from an invalid explicit null. Callers
+    must retain the raw input for revalidation against the transactional plan.
+    """
+    registry = registry or default_registry()
+    merged = copy.deepcopy(current_plan)
+    validate_plan(merged, registry)
+    if raw_plan is MISSING_PLAN:
+        return merged
+    incoming = copy.deepcopy(raw_plan)
+    _validate_plan_structure(incoming, registry, allow_empty=(status == "completed"))
+    if any(incoming[k] != merged[k] for k in ("owner_id", "final_responder_id")):
+        raise ValueError("cannot change roles")
+    old_tasks = {t["task_id"]: t for t in merged["tasks"]}
+    for task in incoming["tasks"]:
+        old = old_tasks.get(task["task_id"])
+        if old is not None:
+            if old != task:
+                raise ValueError("existing task definitions must not change")
+        else:
+            merged["tasks"].append(task)
+    validate_plan(merged, registry)
+    return merged
 
 
 def validate_payload(payload, *, registry=None, require_plan=False, invitation_ids=(), role="owner", phase="collaboration"):
@@ -80,7 +114,12 @@ def validate_payload(payload, *, registry=None, require_plan=False, invitation_i
     if require_plan and "plan" not in payload:
         raise ValueError("initial plan required")
     if "plan" in payload:
-        validate_plan(payload["plan"], registry, allow_empty=(role == "entry" and status == "completed"))
+        if role == "owner":
+            # Dependencies can reference persisted tasks omitted from this input.
+            # Full validation is mandatory after normalization at acceptance.
+            _validate_plan_structure(payload["plan"], registry, allow_empty=(status == "completed"))
+        else:
+            validate_plan(payload["plan"], registry, allow_empty=(role == "entry" and status == "completed"))
         if any(t["task_id"] == "__clarify_entry__" for t in payload["plan"]["tasks"]):
             raise ValueError("reserved system task ID: __clarify_entry__")
     _keys(payload["handoff"], HANDOFF_FIELDS)

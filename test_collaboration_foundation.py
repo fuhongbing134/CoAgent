@@ -9,7 +9,7 @@ import unittest
 from pathlib import Path
 
 from agent_registry import AgentRegistry, DEFAULT_AGENTS, default_registry
-from collaboration_protocol import HANDOFF_FIELDS, loads_payload, validate_payload
+from collaboration_protocol import HANDOFF_FIELDS, loads_payload, validate_payload, validate_plan
 
 
 def payload():
@@ -100,6 +100,7 @@ class FoundationTests(unittest.TestCase):
         self.assertEqual(loads_payload(json.dumps(before))["plan"], explicit["plan"])
 
     def test_invalid_dependencies_still_rejected_without_input_mutation(self):
+        # Owner parsing checks structure; complete graphs are checked after merge.
         for deps in (None, "research", {}, ["missing"], ["review"],
                      ["research", "research"]):
             item = payload()
@@ -107,12 +108,12 @@ class FoundationTests(unittest.TestCase):
             item["plan"]["tasks"][1]["depends_on"] = deps
             before = copy.deepcopy(item)
             with self.subTest(deps=deps), self.assertRaises(ValueError):
-                validate_payload(item)
+                validate_plan(validate_payload(item)["plan"], default_registry())
             self.assertEqual(item, before)
         item = payload()
         item["plan"]["tasks"][0]["depends_on"] = ["review"]
         with self.assertRaisesRegex(ValueError, "cyclic"):
-            validate_payload(item)
+            validate_plan(validate_payload(item)["plan"], default_registry())
         item = payload()
         del item["plan"]["tasks"][0]["depends_on"]
         item["plan"]["tasks"][0]["unknown"] = True
@@ -144,11 +145,11 @@ class FoundationTests(unittest.TestCase):
             item = payload()
             item["plan"]["tasks"][1]["depends_on"] = deps
             with self.subTest(deps=deps), self.assertRaises(ValueError):
-                validate_payload(item)
+                validate_plan(validate_payload(item)["plan"], default_registry())
         item = payload()
         item["plan"]["tasks"][0]["depends_on"] = ["review"]
         with self.assertRaises(ValueError):
-            validate_payload(item)
+            validate_plan(validate_payload(item)["plan"], default_registry())
 
     def test_bad_fields_and_json(self):
         for key, value in [("protocol_version", True), ("status", "failed"), ("questions", "bad"), ("handoff", {})]:

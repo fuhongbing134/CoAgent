@@ -68,8 +68,9 @@ class DirectAnswerTests(unittest.TestCase):
 
     def test_contract_and_registration_defense(self):
         self.assertEqual(parse_entry_response(envelope(answer()))[1]['plan']['tasks'], [])
-        with self.assertRaises(ValueError):
-            validate_payload(answer(), role='owner')
+        # Owner completion may carry an empty plan; identity and unfinished
+        # work are checked against the persisted plan at acceptance.
+        self.assertEqual(validate_payload(answer(), role='owner')['plan']['tasks'], [])
         for status in ('continue_work', 'request_collaboration'):
             item = answer()
             item['status'] = status

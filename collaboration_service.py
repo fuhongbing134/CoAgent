@@ -9,7 +9,7 @@ import uuid
 from collaboration_actions import ActionStore
 from collaboration_entry import entry_prompt, parse_entry_response
 from collaboration_invitation import terminal_invitation
-from collaboration_protocol import validate_plan
+from collaboration_protocol import MISSING_PLAN, normalize_owner_plan, validate_plan
 
 
 @dataclass(frozen=True)
@@ -176,7 +176,8 @@ class CollaborationService:
             "协作调用。只执行当前任务，不自行启动其他Agent。返回可读答复和一个 agent-collaboration 围栏JSON协议块。"
             "协议字段 protocol_version=1,status,handoff,questions；handoff六项为 original_question,response_or_changes,evidence,"
             "rejected_alternatives,uncertainties,expected_action，均为非空文本。无内容写无。默认省略plan；负责人需要新一轮检视时，"
-            "可返回完整plan追加新task_id，不得修改已有任务和角色。协作者和最终答复者不要返回plan。"
+            "可返回仅含新增任务的plan（也兼容完整plan）；遗漏旧任务表示保留，不得修改已有任务和角色。"
+            "新增任务可依赖当前计划中的旧任务。完成时省略plan；completed空任务plan也仅表示无更新。协作者和最终答复者不要返回plan。"
             "协作者完成返回completed，不写邀请。负责人可waiting_user并提供questions，或blocked并提供blocked_reason。"
             "负责人有剩余任务返回continue_work，需授权他人则request_collaboration；混合计划允许同时包含自任务和他人任务。"
             "全部任务结束才completed。负责人邀请必须末行独立@名称，任务必须在当前计划中。最终交付只汇总已有材料，不使用修改工具、不再邀请，"
@@ -193,6 +194,11 @@ class CollaborationService:
                     db.execute("UPDATE collab_calls SET state='completed',text=?,payload=? WHERE job_id=? AND call_id=? AND state='reserved'",
                                (readable,json.dumps(payload,ensure_ascii=False),job_id,call_id))
                 return {"status": "user_update_received"}
+            if role == "owner":
+                # Check the parsed input using the invocation snapshot, but pass
+                # the unmerged payload to accept for transactional revalidation.
+                normalize_owner_plan(payload.get("plan", MISSING_PLAN), view["plan"],
+                                     status=payload["status"], registry=self.store.registry)
             ok = self.store.accept(job_id,call_id,text,payload,invitation_ids=terminal_invitation(text),
                                    error=None if state=="completed" else state,
                                    expected_updates=update_count if role=="owner" else None)

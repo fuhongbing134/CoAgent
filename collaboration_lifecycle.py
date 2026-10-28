@@ -5,7 +5,7 @@ from contextlib import closing
 import sqlite3
 
 from collaboration_batches import BatchStore
-from collaboration_protocol import validate_payload
+from collaboration_protocol import MISSING_PLAN, normalize_owner_plan, validate_payload
 
 
 class LifecycleStore(BatchStore):
@@ -98,7 +98,9 @@ class LifecycleStore(BatchStore):
                     raise ValueError(str(error))
                 validated = validate_payload(payload, registry=self.registry, invitation_ids=invitation_ids,
                                              role=call["role"], phase="final_delivery" if call["role"] == "final" else "collaboration")
-                amended = validated.get("plan", plan)
+                amended = (normalize_owner_plan(validated.get("plan", MISSING_PLAN), plan,
+                                               status=validated["status"], registry=self.registry)
+                           if call["role"] == "owner" else validated.get("plan", plan))
                 if amended != plan:
                     if call["role"] != "owner" or life["phase"] != "working":
                         raise ValueError("only working owner may amend plan")
