@@ -23,4 +23,5 @@
 
 | id | 名称 | 路径 | 适用场景（摘要） | 不适用 | 状态 | 版本 |
 |---|---|---|---|---|---|---|
-| agent-discussion-spec | Agent 讨论约束规范 | `AGENT_DISCUSSION_SPEC.md` | 多 Agent 协作中的讨论（僵持裁决、预算与轮次、异议记录、协议衔接） | 单 Agent 独立执行、无协作讨论的任务 | final | 1.1.0 |
+| agent-discussion-spec | Agent 讨论约束规范 | `AGENT_DISCUSSION_SPEC.md` | 多 Agent 协作中的讨论（僵持裁决、预算与轮次、异议记录、协议衔接） | 单 Agent 独立执行、无协作讨论的任务 | final | 1.2.0 |
+| design-decision-record-spec | 设计决策留痕规范 | `DESIGN_DECISION_RECORD_SPEC.md` | 方案/技术决策设计与讨论需沉淀背景与决策理由 | 纯问答/无设计取舍的简单修改 | final | 1.1.0 |
