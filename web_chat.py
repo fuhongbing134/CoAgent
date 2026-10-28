@@ -1854,10 +1854,17 @@ def build_agent_prompt(
             + "\n\n"
         )
     workspace_context = f"当前工作目录：{working_directory}\n\n"
-    spec_index = (PROJECT_DIR / "specs" / "README.md").read_text(encoding="utf-8")
+    project_entry = (working_directory / "AGENTS.md").read_text(encoding="utf-8")
+    entry_context = (
+        "以下是项目入口（来源：AGENTS.md 全文）\n"
+        f"入口所在项目目录：{working_directory}\n\n"
+        + project_entry
+        + "\n\n"
+    )
+    spec_index = (working_directory / "specs" / "README.md").read_text(encoding="utf-8")
     spec_context = (
         "以下是项目规范索引（来源：specs/README.md 全文）\n"
-        f"索引所在项目目录：{PROJECT_DIR}\n"
+        f"索引所在项目目录：{working_directory}\n"
         "索引内列出的规范路径均相对于该项目的 specs/ 目录，"
         "如 AGENT_DISCUSSION_SPEC.md 对应 specs/AGENT_DISCUSSION_SPEC.md。\n"
         "操作前按适用场景判断规范归属（must_follow/not_applicable/uncertain）"
@@ -1867,7 +1874,7 @@ def build_agent_prompt(
         + spec_index
         + "\n\n"
     )
-    return spec_context + workspace_context + shared_context + "当前用户消息：\n" + prompt
+    return entry_context + spec_context + workspace_context + shared_context + "当前用户消息：\n" + prompt
 
 
 @structured_worker

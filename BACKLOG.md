@@ -75,13 +75,14 @@
 ### 5. 入口自动注入（规范治理）
 
 - **需求**：工作台后台统一注入规范入口与索引（复用 `web_chat.py` 的 `build_agent_prompt()`，注入 `AGENTS.md` 入口 + `specs/README.md` 索引，正文按需读，不注入全部正文）。
-- **状态**：已确认但暂缓
-- **暂缓影响**：正确性问题（当前无强制接入，Agent 可能不读规范，治理机制对不自觉的 Agent 无效）
+- **状态**：已完成
+- **暂缓影响**：无（已完成）
 - **优先级**：高（最高，修完当前 bug 后第一个做）
 - **价值**：实现「用户无感 + 所有 Agent 可靠收到入口」。
 - **当前替代方式**：靠 Agent 自觉读 `AGENTS.md`/specs（不可靠，本次会话因 `AGENTS.md` 在上下文而读到，其他路径未验证）。
 - **启动条件**：P0-2 并发会话冲突相关 bug 修复完成后。
 - **验收标准**：`build_agent_prompt()` 统一注入 `AGENTS.md` + `specs/README.md`，覆盖普通聊天/entry/owner/collaborator/final/澄清重规划/CLI 恢复；按实际工作目录读取（`resolve_working_directory()`）；每次调用刷新、不写入用户原文、不累积共享历史、不静默截断或忽略失败；保留角色边界（final 只能汇总）；回归通过（两后端、新建/恢复、各角色含入口、用户原文与协议提示完整、final 限制不破坏）。
+- **完成说明**：注入已实现并验证——build_agent_prompt 统一注入 AGENTS.md 入口 + specs/README.md 索引，按实际工作目录(working_directory)读取，失败抛错；35 项既有测试 + 隔离检查通过；场景1(普通问答)与场景2(协作讨论)真实后端验证了入口送达、判适用、读正文、handoff.evidence 留痕。剩余待补：真实后端两后端新建/恢复、各角色逐入口、final 限制的完整回归。
 - **关联**：`AGENTS.md`、`specs/README.md`、`web_chat.py` `build_agent_prompt()`（`main.py` 独立 Codex 入口暂不覆盖）
 
 ### 6. 同一 agent 并发多任务 / sub-agent 分流

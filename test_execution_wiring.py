@@ -159,6 +159,10 @@ class WiringTests(unittest.TestCase):
             return ProcessResult('completed', 0, output, b'', 'confirmed')
         patch_file = self.root / 'patch.yml'
         patch_file.write_text('{}', encoding='utf-8')
+        # The worker reads policy from its actual workspace, not the workbench root.
+        (self.root / 'AGENTS.md').write_text('fixture entry', encoding='utf-8')
+        (self.root / 'specs').mkdir()
+        (self.root / 'specs' / 'README.md').write_text('fixture index', encoding='utf-8')
         with patch.object(web, 'resolve_working_directory', return_value=self.root), \
              patch.object(web, 'resolve_codex_command', return_value=sys.executable), \
              patch.object(web, 'resolve_dsh_command', return_value=sys.executable), \
