@@ -25,3 +25,4 @@
 |---|---|---|---|---|---|---|
 | agent-discussion-spec | Agent 讨论约束规范 | `AGENT_DISCUSSION_SPEC.md` | 多 Agent 协作中的讨论（僵持裁决、预算与轮次、异议记录、协议衔接） | 单 Agent 独立执行、无协作讨论的任务 | final | 1.2.0 |
 | design-decision-record-spec | 设计决策留痕规范 | `DESIGN_DECISION_RECORD_SPEC.md` | 方案/技术决策设计与讨论需沉淀背景与决策理由 | 纯问答/无设计取舍的简单修改 | final | 1.1.0 |
+| code-review-spec | 编码与代码检视规范 | `CODE_REVIEW_SPEC.md` | 编码与代码检视（含合入代码变更） | 纯讨论／无代码变更的场景 | final | 1.0.0 |
