@@ -307,35 +307,10 @@ PAGE = r"""<!doctype html>
     .logo { width:36px;height:36px;border-radius:12px;display:grid;place-items:center;background:linear-gradient(145deg,#a8c7fa,#b8ead5);color:#101216;font-weight:800;font-size:17px; }
     .brand-name { font-size:16px;font-weight:700;letter-spacing:.1px; }
     .brand-sub { color:var(--muted);font-size:11px;margin-top:2px; }
-    .section-title { display:flex;justify-content:space-between;align-items:center;padding:0 8px;margin:12px 0 10px;color:#c2c9d5;font-size:11px;font-weight:700;letter-spacing:.12em;text-transform:uppercase; }
-    .count { color:var(--muted);font-size:11px;font-weight:500;letter-spacing:0; }
-    #agents { display:grid;gap:9px; }
-    .agent { background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:12px; }
-    .agent-head { display:flex;align-items:center;gap:10px; }
     .avatar { flex:none;width:32px;height:32px;border-radius:10px;display:grid;place-items:center;font-weight:750;color:#12151b;background:#a8c7fa; }
     .avatar.deepseek { background:#b8ead5; }
-    .agent-name { font-weight:650; }
-    .agent-vendor { color:var(--muted);font-size:11px;margin-top:1px; }
-    .agent-model { color:#c5ccda;font-size:12px;margin-top:10px;overflow-wrap:anywhere; }
-    .agent-role { color:var(--muted);font-size:11px;margin-top:5px; }
-    .agent-seen { color:#778191;font-size:10px;margin-top:9px;padding-top:8px;border-top:1px solid #292e37; }
-    .agent-capabilities { margin-top:10px;padding-top:10px;border-top:1px solid var(--line); }
-    .cap-tags { display:flex;gap:5px;flex-wrap:wrap; }
-    .cap-tag { display:inline-block;border:1px solid #354052;border-radius:6px;padding:2px 6px;font-size:10px;color:#b7c5db;background:#202936; }
-    .cap-tag.passed { color:#a0dfbb;border-color:#355646;background:#1d3028; }
-    .cap-tag.failed { color:#f0b2ac;border-color:#62413f;background:#352424; }
-    .cap-tag.responded { color:#b6cef3; }
-    .cap-caption { margin-top:7px;color:var(--muted);font-size:10px;line-height:1.6;overflow-wrap:anywhere; }
-    .workbench-card { margin-top:14px; }
-    .workbench-card .avatar { background:#d1c1f0; }
-    .cap-button { margin-left:auto;flex:none;padding:5px 9px;border:1px solid #46546b;border-radius:7px;background:#263246;color:#d5e2f7;font-size:11px;cursor:pointer; }
-    .cap-button:hover:not(:disabled) { background:#34435c; }
-    .cap-button:disabled { opacity:.5;cursor:wait; }
-    .cap-result { padding:9px 0;border-top:1px solid var(--line); }
-    .cap-result summary { display:flex;align-items:center;justify-content:space-between;gap:6px;cursor:pointer;font-size:11px; }
-    .cap-result[open] summary { margin-bottom:7px; }
     .side-note { color:#788292;font-size:11px;line-height:1.6;padding:14px 8px; }
-    main { width:100%;height:100vh;height:100dvh;min-width:0;min-height:0;overflow:hidden;display:grid;grid-template-rows:auto auto minmax(0,1fr) auto; }
+    main { width:100%;height:100vh;height:100dvh;min-width:0;min-height:0;overflow:hidden;display:grid;grid-template-rows:auto minmax(0,1fr) auto; }
     .topbar { min-height:68px;position:relative;z-index:2;border-bottom:1px solid var(--line);display:flex;align-items:center;justify-content:space-between;padding:12px clamp(18px,4vw,48px);gap:16px;background:rgba(16,18,22,.88);backdrop-filter:blur(12px); }
     .title { font-size:16px;font-weight:700; }
     .subtitle { color:var(--muted);font-size:12px;margin-top:3px; }
@@ -349,17 +324,6 @@ PAGE = r"""<!doctype html>
     .stop-button:hover:not(:disabled) { background:#512b30; }
     .stop-button:disabled { opacity:.45;cursor:not-allowed; }
     .message-stop { margin-top:9px; }
-    .workspace-panel { width:100%;margin:0;border:0;border-bottom:1px solid var(--line);background:rgba(26,32,41,.78);padding:9px clamp(18px,4vw,48px); }
-    .workspace-heading { display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:5px; }
-    .workspace-heading label { color:#d9e1ed;font-size:12px;font-weight:650; }
-    .workspace-caption { color:#b8c3d4;font-size:11px; }
-    .workspace-row { display:flex;gap:8px; }
-    .workspace-path { flex:1;min-width:0;border:1px solid #39414e;border-radius:8px;background:#11151b;color:var(--text);padding:8px 10px;font:12px/1.4 Consolas,"Courier New",monospace; }
-    .workspace-path:focus { outline:1px solid #7897c4;border-color:#7897c4; }
-    .workspace-apply { flex:none;border:1px solid #43536b;border-radius:8px;background:#263448;color:#dbe8fb;padding:7px 11px;font-size:11px;cursor:pointer; }
-    .workspace-apply:hover:not(:disabled) { background:#31445d; }
-    .workspace-apply:disabled { opacity:.45;cursor:not-allowed; }
-    .workspace-status { color:#8792a2;font-size:10px;margin-top:4px; }
     .stream { min-height:0;overflow-y:auto;overflow-x:hidden;overscroll-behavior:contain;scrollbar-gutter:stable;width:100%;margin:0;padding:18px clamp(18px,4vw,48px) 22px; }
     .day,#messages,#error { width:min(960px,100%);margin-left:auto;margin-right:auto; }
     .day { text-align:center;color:#7f8998;font-size:10px;letter-spacing:.06em;margin-top:5px;margin-bottom:22px; }
@@ -399,15 +363,22 @@ PAGE = r"""<!doctype html>
     .send-button:hover:not(:disabled) { background:#c8dcfb; }
     .send-button:disabled, textarea:disabled { opacity:.55;cursor:not-allowed; }
     #error { color:#ffaaa6;padding:12px;display:none;text-align:center; }
+    .agent-summary { border:1px solid var(--line);border-radius:10px;padding:10px;margin-bottom:16px;font-size:12px; }
+    #task-panel { min-width:0; }
+    #task-panel > summary { cursor:pointer;font-weight:650;padding:8px 0; }
+    #collaboration-tasks { min-width:0; }
+    #collaboration-tasks .bubble { min-width:0;margin:10px 0;overflow-wrap:anywhere; }
+    #collaboration-tasks pre { white-space:pre-wrap;overflow-wrap:anywhere; }
+    #collaboration-tasks .task-controls { display:flex;flex-wrap:wrap;gap:6px; }
+    #collaboration-tasks input { min-width:0;max-width:100%; }
+    #collaboration-tasks textarea { border:1px solid var(--line);padding:6px; }
     @media (max-width:760px) {
       .app { grid-template-columns:1fr;grid-template-rows:auto minmax(0,1fr); }
-      aside { height:auto;max-height:190px;border-right:0;border-bottom:1px solid var(--line);padding:10px 14px;overflow-x:hidden; }
+      aside { height:auto;max-height:45dvh;border-right:0;border-bottom:1px solid var(--line);padding:10px 14px;overflow-x:hidden; }
       .brand { padding:0 6px 9px; }
       .brand-sub { display:none; }
-      .section-title { margin:3px 4px 7px; }
-      #agents { display:flex;gap:8px;overflow-x:auto;padding-bottom:3px; }
-      .agent { flex:0 0 min(240px,75vw);padding:9px; }
-      .agent-model,.agent-role,.agent-seen,.side-note { display:none; }
+      .agent-summary { padding:6px 10px;margin-bottom:4px; }
+      #collaboration-tasks { max-height:25dvh;overflow-y:auto; }
       main { height:auto; }
       .topbar { min-height:58px;padding:9px 14px; }
       .topbar .title { font-size:14px; }
@@ -416,12 +387,6 @@ PAGE = r"""<!doctype html>
       select { max-width:42vw;padding:7px 23px 7px 8px;font-size:11px; }
       .refresh { gap:6px;font-size:10px; }
       .refresh-frequency { display:none; }
-      .workspace-panel { padding:8px 14px; }
-      .workspace-caption,.workspace-status { display:none; }
-      .workspace-heading { margin-bottom:5px; }
-      .workspace-row { gap:6px; }
-      .workspace-path { padding:7px 8px;font-size:11px; }
-      .workspace-apply { padding:7px 8px;font-size:10px; }
       .stream { padding:14px 12px 18px; }
       .message { max-width:96%; }
       .composer { padding:8px 10px 10px; }
@@ -437,28 +402,19 @@ PAGE = r"""<!doctype html>
 </head>
 <body>
   <div class="app">
-    <aside>
+    <aside id="task-sidebar">
       <div class="brand"><div class="logo">A</div><div><div class="brand-name">Agent 工作台</div><div class="brand-sub">本机对话 · Codex 与 DeepSeek Harness</div></div></div>
-      <div class="section-title"><span>Agents</span><span id="agent-count" class="count">读取中</span></div>
-      <div id="agents"></div>
-      <article class="agent workbench-card">
-        <div class="agent-head"><div class="avatar">W</div><div><div class="agent-name">工作台环境</div><div class="agent-vendor">本机进程 · 实测能力</div></div><button class="cap-button" id="probe-capabilities" type="button">检测</button></div>
-        <div class="cap-caption">仅代表工作台进程，不代表上方 Agent 的沙箱权限。</div>
-        <div id="capability-results" class="agent-capabilities"></div>
-        <div id="capability-error" class="cap-caption" role="status"></div>
-      </article>
-      <div class="side-note">这里显示已登记到 agent_bridge 的 Agent。最近活动时间反映桥接调用或工作台消息，不代表实时在线状态。</div>
+      <section class="agent-summary" aria-label="可用 Agent"><div id="agents"></div></section>
+      <details id="task-panel" open>
+        <summary id="task-count">任务（0）</summary>
+        <div id="collaboration-tasks"></div>
+      </details>
     </aside>
     <main>
       <header class="topbar">
         <div><div class="title">共享对话</div><div class="subtitle">通过 @ 提及选择接收对象</div></div>
         <div class="tools"><select id="conversation" aria-label="选择对话"></select><div class="refresh"><span class="dot"></span><div class="refresh-copy"><span id="status">正在连接</span><span class="refresh-frequency">每 3 秒自动更新</span></div></div></div>
       </header>
-      <section class="workspace-panel" aria-label="工作目录设置">
-        <div class="workspace-heading"><label for="workspace-path">当前对话的工作目录</label><span class="workspace-caption">用于运行当前对话中的 Agent</span></div>
-        <div class="workspace-row"><input class="workspace-path" id="workspace-path" type="text" spellcheck="false" placeholder="C:\Users\you\project" aria-label="工作目录绝对路径"><button class="workspace-apply" id="save-workspace" type="button">应用到此对话</button></div>
-        <div class="workspace-status" id="workspace-status">修改后会保留对话消息，并让 Agent 在新目录启动各自的新 CLI 会话。</div>
-      </section>
       <section class="stream" id="stream" aria-live="polite">
         <div class="day">消息按发送时间排列</div>
         <div id="messages"></div>
@@ -487,29 +443,21 @@ const sendButton = document.getElementById("send-button");
 const stopAllButton = document.getElementById("stop-all");
 const composeHint = document.getElementById("compose-hint");
 const mentionSuggestionsNode = document.getElementById("mention-suggestions");
-const workspacePathInput = document.getElementById("workspace-path");
-const saveWorkspaceButton = document.getElementById("save-workspace");
-const workspaceStatusNode = document.getElementById("workspace-status");
-const workspaceStatusText = "当前对话中的 Agent 会以此目录作为工作目录。修改目录后保留消息记录，并重开 CLI 会话。";
 const mentionOptions = [
   {token:"@Codex", label:"Codex", description:"只由 Codex 回复", prefixes:["codex", "openai"]},
   {token:"@DeepSeek Harness", label:"DeepSeek Harness", description:"只由 DeepSeek Harness 回复", prefixes:["deepseek harness", "deepseekharness", "deepseek"]},
   {token:"@all", label:"所有 Agent", description:"同时发送给所有 Agent", prefixes:["all", "everyone", "所有", "全部"]}
 ];
 let selectedConversation = "default";
-const agentCards = new Map();
 let refreshVersion = 0;
 let refreshPending = false;
 let refreshPromise = null;
-let settingsVersion = 0;
-let capabilityVersion = 0;
 let initialized = false;
 let previousMessageIds = "";
 let pendingAgents = new Set();
 let availableAgents = {codex:false, "deepseek-harness":false};
 let submitting = false;
 let stopAllSubmitting = false;
-let workspaceSaving = false;
 let activeMentionIndex = 0;
 let currentMentionKey = "";
 let dismissedMentionStart = null;
@@ -539,97 +487,17 @@ async function getJson(path) {
   } finally { clearTimeout(timeout); }
 }
 
-async function loadWorkspaceSettings() {
-  const conversationId = selectedConversation;
-  const version = ++settingsVersion;
-  try {
-    const settings = await getJson("/api/settings?conversation_id=" + encodeURIComponent(conversationId));
-    if (conversationId !== selectedConversation || version !== settingsVersion) return;
-    workspacePathInput.value = settings.working_directory;
-    workspaceStatusNode.textContent = workspaceStatusText;
-  } catch (error) {
-    if (conversationId !== selectedConversation || version !== settingsVersion) return;
-    workspaceStatusNode.textContent = "读取工作目录设置失败：" + error.message;
-  }
+function agentAvailability(agents, codexAvailable, dshAvailable) {
+  return {
+    codex: Boolean(codexAvailable),
+    "deepseek-harness": Boolean(dshAvailable && agents.some(agent => agent.agent_id === "deepseek-harness"))
+  };
 }
 
-async function saveWorkspaceSettings() {
-  if (workspaceSaving) return;
-  const conversationId = selectedConversation;
-  const version = ++settingsVersion;
-  workspaceSaving = true;
-  saveWorkspaceButton.disabled = true;
-  workspacePathInput.disabled = true;
-  workspaceStatusNode.textContent = "正在验证并应用工作目录…";
-  try {
-    const response = await fetch("/api/settings", {
-      method:"POST",
-      headers:{"Content-Type":"application/json"},
-      body:JSON.stringify({conversation_id:conversationId, working_directory:workspacePathInput.value})
-    });
-    const result = await response.json();
-    if (!response.ok) throw new Error(result.error || "HTTP " + response.status);
-    if (conversationId === selectedConversation && version === settingsVersion) {
-      workspacePathInput.value = result.working_directory;
-      previousMessageIds = "";
-      workspaceStatusNode.textContent = result.changed
-        ? "已应用。工作台消息保留，当前对话的 Agent CLI 会话已重置，并将在新目录重新开始。"
-        : workspaceStatusText;
-    }
-    await refreshAll();
-  } catch (error) {
-    if (conversationId === selectedConversation && version === settingsVersion)
-      workspaceStatusNode.textContent = "应用失败：" + error.message;
-  } finally {
-    workspaceSaving = false;
-    await refreshAll();
-  }
-}
-
-function renderAgents(agents) {
-  const ids = new Set(agents.map(function(agent) { return agent.agent_id; }));
-  for (const [id, card] of agentCards) {
-    if (!ids.has(id)) { card.remove(); agentCards.delete(id); }
-  }
-  const empty = agentsNode.querySelector(".side-note");
-  if (empty) empty.remove();
-  document.getElementById("agent-count").textContent = agents.length + " 个已登记";
-  for (const agent of agents) {
-    let card = agentCards.get(agent.agent_id);
-    if (!card) {
-    card = textElement("article", "agent");
-    const head = textElement("div", "agent-head");
-    const avatar = textElement("div", "avatar" + (String(agent.agent_id).includes("deepseek") ? " deepseek" : ""), String(agent.name || "?").slice(0,1));
-    const identity = textElement("div");
-    identity.append(textElement("div", "agent-name", agent.name || agent.agent_id));
-    identity.append(textElement("div", "agent-vendor", agent.vendor || "未知厂商"));
-    head.append(avatar, identity);
-    card.append(head);
-    const capabilitySlot = textElement("div", "agent-capabilities");
-    capabilitySlot.dataset.capabilityAgent = agent.agent_id;
-    capabilitySlot.append(textElement("span", "cap-tag", "配置读取中"));
-    card.append(capabilitySlot);
-    card.append(textElement("div", "agent-model", agent.model || "未指定模型"));
-    card.append(textElement("div", "agent-role", agent.role || ""));
-    card.append(textElement("div", "agent-seen", "最近活动：" + formatTime(agent.last_seen)));
-    agentCards.set(agent.agent_id, card);
-    }
-    const fields = {
-      ".agent-name": agent.name || agent.agent_id,
-      ".agent-vendor": agent.vendor || "未知厂商",
-      ".agent-model": agent.model || "未指定模型",
-      ".agent-role": agent.role || "",
-      ".agent-seen": "最近活动：" + formatTime(agent.last_seen),
-      ".avatar": String(agent.name || "?").slice(0,1)
-    };
-    for (const [selector, value] of Object.entries(fields)) {
-      const node = card.querySelector(selector);
-      if (node.textContent !== value) node.textContent = value;
-    }
-    const index = agents.indexOf(agent);
-    if (agentsNode.children[index] !== card) agentsNode.insertBefore(card, agentsNode.children[index] || null);
-  }
-  if (!agents.length) agentsNode.append(textElement("div", "side-note", "还没有登记 Agent。"));
+function renderAgents(availability) {
+  const names = Object.keys(availability).filter(id => availability[id]).map(agentLabel);
+  const label = names.join(" / ") || "暂无可用 Agent";
+  if (agentsNode.textContent !== label) agentsNode.textContent = label;
 }
 
 function renderConversations(conversations) {
@@ -649,11 +517,8 @@ function renderConversations(conversations) {
 }
 
 function renderRecipients(agents, codexAvailable, dshAvailable) {
-  const registered = new Set(agents.map(function(agent) { return agent.agent_id; }));
-  availableAgents = {
-    codex: Boolean(codexAvailable),
-    "deepseek-harness": Boolean(dshAvailable && registered.has("deepseek-harness"))
-  };
+  availableAgents = agentAvailability(agents, codexAvailable, dshAvailable);
+  renderAgents(availableAgents);
 }
 
 function recipientsForText(content) {
@@ -838,10 +703,28 @@ function renderMessages(messages) {
 const collaborationDrafts = new Map();
 const collaborationRoot = document.createElement("section");
 collaborationRoot.setAttribute("aria-label", "Agent 协作任务");
-messagesNode.before(collaborationRoot);
+const taskPanel = document.getElementById("task-panel");
+const taskCount = document.getElementById("task-count");
+const taskHost = document.getElementById("collaboration-tasks");
+const taskSidebar = document.getElementById("task-sidebar");
+taskHost.append(collaborationRoot);
+if (window.matchMedia("(max-width:760px)").matches) taskPanel.open = false;
+const collaborationCards = new Map();
 let collaborationSignature = "";
+let collaborationConversation = selectedConversation;
+let collaborationEpoch = 0;
+
+function resetCollaboration(conversation) {
+  collaborationConversation = conversation;
+  collaborationEpoch++;
+  collaborationSignature = "";
+  collaborationCards.clear();
+  collaborationRoot.replaceChildren();
+  taskCount.textContent = "任务（0）";
+}
 
 async function collaborationAction(task, action, button, content = "", roundLimit = null) {
+  if (button.dataset.conversation !== selectedConversation || button.dataset.epoch !== String(collaborationEpoch)) return;
   button.disabled = true;
   const conversation = selectedConversation;
   const operationId = button.dataset.operationId || crypto.randomUUID();
@@ -865,26 +748,53 @@ async function collaborationAction(task, action, button, content = "", roundLimi
 }
 
 function renderCollaboration(tasks, conversation) {
+  if (conversation !== selectedConversation) return;
+  if (conversation !== collaborationConversation) resetCollaboration(conversation);
   const signature = JSON.stringify([conversation,tasks]);
   if (signature === collaborationSignature) return;
   collaborationSignature = signature;
-  collaborationRoot.replaceChildren();
+  const sidebarScroll = taskSidebar.scrollTop;
+  const hostScroll = taskHost.scrollTop;
+  taskCount.textContent = "任务（" + tasks.length + "）";
+  const ids = new Set(tasks.map(task => task.state.job_id));
+  for (const [id, saved] of collaborationCards) {
+    if (!ids.has(id)) { saved.card.remove(); collaborationCards.delete(id); }
+  }
   const labels = {working:"协作中",waiting_user:"等待你回答",blocked:"受阻",quiescing:"正在停止后续工作",
     final_ready:"等待最终汇总",final_delivery:"最终汇总中",completed:"已交付",failed:"失败",interrupted:"已中断",stopped:"已停止"};
   for (const task of tasks) {
-    const card = textElement("article", "bubble");
-    card.style.margin = "12px";
     const state = task.state;
+    const saved = collaborationCards.get(state.job_id);
+    const taskSignature = JSON.stringify(task);
+    if (saved && saved.signature === taskSignature) continue;
+    const card = saved ? saved.card : textElement("article", "bubble");
+    const oldControls = card.querySelector(".task-controls");
+    if (oldControls && Array.from(oldControls.children).some(node => node.disabled)) {
+      collaborationSignature = "";
+      continue;
+    }
+    const oldDetails = card.querySelector("details");
+    const oldAnswer = card.querySelector("textarea");
+    const oldLimit = card.querySelector("input");
+    const focused = document.activeElement;
+    const focusKind = oldAnswer && focused === oldAnswer ? "textarea" : oldLimit && focused === oldLimit ? "input" : null;
+    const selection = oldAnswer && [oldAnswer.selectionStart, oldAnswer.selectionEnd];
+    if (oldAnswer) collaborationDrafts.set(state.job_id, oldAnswer.value);
+    card.replaceChildren();
     card.append(textElement("strong", "", (labels[state.phase] || state.phase) + " · " + state.used + "/" + state.round_limit + " 轮"));
     card.append(textElement("div", "", "负责人：" + agentLabel(task.plan.owner_id) + "；最终答复：" + agentLabel(task.plan.final_responder_id)));
     if (state.reason) card.append(textElement("p", "", state.reason));
     const details = document.createElement("details");
+    details.open = oldDetails ? oldDetails.open : false;
     details.append(textElement("summary", "", "需求与分工"), textElement("pre", "content", task.request + "\n" + task.plan.tasks.map(t => t.agent_id + ": " + t.instruction).join("\n")));
     card.append(details);
     const controls = document.createElement("div");
+    controls.className = "task-controls";
     function add(label, action, contentProvider) {
       const button = textElement("button", "stop-button", label);
       button.type = "button";
+      button.dataset.conversation = conversation;
+      button.dataset.epoch = String(collaborationEpoch);
       button.onclick = () => collaborationAction(task,action,button,contentProvider ? contentProvider() : "");
       controls.append(button);
     }
@@ -904,9 +814,12 @@ function renderCollaboration(tasks, conversation) {
     if (["working","waiting_user","blocked"].includes(state.phase)) {
       const limit = document.createElement("input");
       limit.type = "number"; limit.min = "2"; limit.max = "100"; limit.value = state.round_limit;
+      if (oldLimit && String(oldLimit.value) !== String(saved.roundLimit)) limit.value = oldLimit.value;
       limit.setAttribute("aria-label", "轮次上限");
       controls.append(limit);
       const save = textElement("button", "stop-button", "调整上限");
+      save.dataset.conversation = conversation;
+      save.dataset.epoch = String(collaborationEpoch);
       save.onclick = () => collaborationAction(task,"set_limit",save,"",Number(limit.value));
       controls.append(save);
     }
@@ -914,77 +827,24 @@ function renderCollaboration(tasks, conversation) {
     if (["stopped","completed","interrupted"].includes(state.phase)) {
       card.append(textElement("p", "", "已有改动未自动回退；本任务可能涉及文件修改，范围及完整性未经核实。"));
     }
-    collaborationRoot.append(card);
+    collaborationCards.set(state.job_id, {card, signature:taskSignature, roundLimit:state.round_limit});
+    if (!saved) collaborationRoot.append(card);
+    if (focusKind) {
+      const replacement = card.querySelector(focusKind);
+      if (replacement) {
+        replacement.focus({preventScroll:true});
+        if (focusKind === "textarea") replacement.setSelectionRange(...selection);
+      }
+    }
   }
+  tasks.forEach((task, index) => {
+    const card = collaborationCards.get(task.state.job_id).card;
+    if (collaborationRoot.children[index] !== card)
+      collaborationRoot.insertBefore(card, collaborationRoot.children[index] || null);
+  });
+  taskSidebar.scrollTop = sidebarScroll;
+  taskHost.scrollTop = hostScroll;
 }
-
-async function refreshCapabilities(version = refreshVersion) {
-  const conversation = selectedConversation;
-  const requestVersion = ++capabilityVersion;
-  const data = await getJson("/api/capabilities?conversation_id=" + encodeURIComponent(conversation));
-  if (conversation !== selectedConversation || version !== refreshVersion || requestVersion !== capabilityVersion) return;
-  document.getElementById("capability-error").textContent = "";
-  const root = document.getElementById("capability-results");
-  for (const agent of data.agent_configuration) {
-    const card = agentCards.get(agent.id);
-    const slot = card && card.querySelector("[data-capability-agent]");
-    if (!slot) continue;
-    const slotSignature = JSON.stringify([agent.cli_found, agent.configuration]);
-    if (slot.dataset.signature === slotSignature) continue;
-    slot.dataset.signature = slotSignature;
-    slot.replaceChildren();
-    const tags = textElement("div", "cap-tags");
-    tags.append(textElement("span", "cap-tag " + (agent.cli_found ? "passed" : "failed"),
-      agent.cli_found ? "CLI 已找到" : "CLI 未找到"));
-    tags.append(textElement("span", "cap-tag", "沙箱能力未实测"));
-    slot.append(tags, textElement("div", "cap-caption", "启动配置 · " + agent.configuration));
-  }
-  document.getElementById("probe-capabilities").disabled = data.probe.state === "running";
-  document.getElementById("probe-capabilities").textContent = data.probe.state === "running" ? "检测中…" : "检测";
-  // Keep expanded diagnostics open across polling when results have not changed.
-  const signature = JSON.stringify(data.probe);
-  if (root.dataset.signature === signature) return;
-  root.dataset.signature = signature;
-  root.replaceChildren();
-  const stateLabels = {not_tested:"未检测", running:"检测中", completed:"检测完成", failed:"检测失败"};
-  root.append(textElement("div", "cap-caption", (stateLabels[data.probe.state] || data.probe.state)
-    + (data.probe.expired ? " · 结果已过期" : "")));
-  const directory = textElement("div", "cap-caption", data.probe.working_directory);
-  directory.title = data.probe.working_directory;
-  root.append(directory);
-  const labels = {workspace_write:"目录读写", git_read:"Git 本地读取", https:"HTTPS", git_remote_read:"远程仓库读取"};
-  const statuses = {passed:"通过", failed:"失败", responded:"收到 HTTP 响应", skipped:"跳过"};
-  for (const item of data.probe.results) {
-    const row = document.createElement("details");
-    row.className = "cap-result";
-    const summary = document.createElement("summary");
-    const label = item.name === "https" ? new URL(item.target).hostname : (labels[item.name] || item.name);
-    summary.append(textElement("span", "", label), textElement("span", "cap-tag " + item.status,
-      item.http_status ? "HTTP " + item.http_status : (statuses[item.status] || item.status)));
-    row.append(summary);
-    row.append(textElement("div", "cap-caption", "目标：" + item.target + "；来源：工作台进程实测；时间：" + formatTime(item.checked_at)
-      + "；耗时：" + item.elapsed_ms + "ms；方法：" + item.method + "；说明：" + item.detail));
-    root.append(row);
-  }
-}
-
-document.getElementById("probe-capabilities").addEventListener("click", async function() {
-  const conversation = selectedConversation;
-  const version = refreshVersion;
-  this.disabled = true;
-  try {
-    const response = await fetch("/api/capabilities/probe", {
-      method:"POST", headers:{"Content-Type":"application/json", "X-Capability-Token":capabilityToken},
-      body:JSON.stringify({conversation_id:conversation})
-    });
-    const data = await response.json();
-    if (!response.ok) throw new Error(data.error || "检测请求失败");
-    if (conversation === selectedConversation && version === refreshVersion) await refreshCapabilities(version);
-  } catch (error) {
-    if (conversation === selectedConversation && version === refreshVersion)
-      document.getElementById("capability-error").textContent = error.message;
-  } finally { this.disabled = false; }
-});
 
 async function refreshRound(version, conversation) {
   try {
@@ -996,37 +856,20 @@ async function refreshRound(version, conversation) {
     ]);
     if (version !== refreshVersion || conversation !== selectedConversation) return;
     renderCollaboration(results[3].tasks || [], conversation);
-    renderAgents(results[0].agents);
     renderRecipients(results[0].agents, results[0].codex_cli_available, results[0].dsh_cli_available);
     renderConversations(results[1].conversations);
     if (conversation !== selectedConversation) {
       refreshVersion++;
       refreshPending = true;
-      loadWorkspaceSettings();
+      resetCollaboration(selectedConversation);
       return;
     }
     const activeRuns = results[2].runs || [];
     stopAllButton.disabled = stopAllSubmitting || activeRuns.length === 0;
     stopAllButton.textContent = activeRuns.length ? "Stop (" + activeRuns.length + ")" : "Stop";
-    const workspaceBusy = activeRuns.some(function(run) { return run.conversation_id === selectedConversation; });
-    workspacePathInput.disabled = workspaceBusy;
-    saveWorkspaceButton.disabled = workspaceSaving || workspaceBusy;
-    if (workspaceBusy) {
-      workspaceStatusNode.dataset.busy = "true";
-      workspaceStatusNode.textContent = "该对话有 Agent 正在运行，请等待完成或停止后再更改工作目录。";
-    } else if (workspaceStatusNode.dataset.busy === "true") {
-      delete workspaceStatusNode.dataset.busy;
-      workspaceStatusNode.textContent = workspaceStatusText;
-    }
     const data = await getJson("/api/messages?conversation_id=" + encodeURIComponent(conversation) + "&limit=500");
     if (version !== refreshVersion || conversation !== selectedConversation) return;
     renderMessages(data.messages);
-    try {
-      await refreshCapabilities(version);
-    } catch (error) {
-      if (version === refreshVersion && conversation === selectedConversation)
-        document.getElementById("capability-error").textContent = error.message;
-    }
     if (version !== refreshVersion || conversation !== selectedConversation) return;
     errorNode.style.display = "none";
     statusNode.textContent = "已更新 · " + new Date().toLocaleTimeString("zh-CN");
@@ -1092,15 +935,8 @@ conversationNode.addEventListener("change", function() {
   selectedConversation = conversationNode.value;
   previousMessageIds = "";
   initialized = false;
-  loadWorkspaceSettings();
+  resetCollaboration(selectedConversation);
   refreshAll();
-});
-saveWorkspaceButton.addEventListener("click", saveWorkspaceSettings);
-workspacePathInput.addEventListener("keydown", function(event) {
-  if (event.key === "Enter") {
-    event.preventDefault();
-    saveWorkspaceSettings();
-  }
 });
 composerNode.addEventListener("submit", async function(event) {
   event.preventDefault();
@@ -1205,7 +1041,7 @@ inputNode.addEventListener("keydown", function(event) {
     composerNode.requestSubmit();
   }
 });
-loadWorkspaceSettings();
+// WORKBENCH_STARTUP
 refreshAll();
 setInterval(function() { refreshAll(true); }, 3000);
 </script>
