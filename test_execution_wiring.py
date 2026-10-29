@@ -184,7 +184,8 @@ class WiringTests(unittest.TestCase):
         self.assertEqual(json.loads(rows[-1]['config_snapshot'])['profile'], web.DSH_PROFILE)
 
     def test_real_invoke_roles_and_replan_keep_actual_call_identity(self):
-        service = CollaborationService(self.path, web.invoke_collaboration, web.cancel_collaboration)
+        service = CollaborationService(self.path, web.invoke_collaboration, web.cancel_collaboration,
+                                       finalize_message=web.finalize_message)
         item = payload()
         item['status'] = 'continue_work'
         service.register_entry('job','chat','codex','work',item,'Plan')
@@ -197,8 +198,7 @@ class WiringTests(unittest.TestCase):
             result = payload()
             result.pop('plan')
             text = 'Answer\n```agent-collaboration\n' + json.dumps(result) + '\n```'
-            web.update_workbench_message(message, text, 'completed')
-            return web.WorkerResult('completed', text, execution.result)
+            return web.worker_reply(message, text, 'completed')
         with patch.object(web, 'collaboration_service', return_value=service), \
              patch.object(web, 'run_codex', worker):
             for index, role in enumerate(('collaborator','owner','final')):
@@ -212,6 +212,20 @@ class WiringTests(unittest.TestCase):
                 self.assertTrue(reply.dispatch_allowed)
                 duplicate = web.invoke_collaboration('job','codex',role,'prompt',call_id=call_id)
                 self.assertTrue(duplicate.dispatch_allowed)
+                self.assertEqual(duplicate.state, reply.state)
+                self.assertEqual(duplicate.text, reply.text)
+                self.assertEqual(duplicate.message_id, reply.message_id)
+                if role == 'collaborator':
+                    # Exercise the real parse/transaction boundary with the
+                    # recovered reply; placeholders would fail this parse.
+                    from collaboration_entry import parse_entry_response
+                    parsed = parse_entry_response(duplicate.text, role=role)[1]
+                    receipt = service.store.accept_result('job', call_id, duplicate.text,
+                                 parsed, message_id=duplicate.message_id)
+                    self.assertEqual(receipt.disposition, 'accepted')
+                    repeated = service.store.accept_result('job', call_id, duplicate.text,
+                                  parsed, message_id=duplicate.message_id)
+                    self.assertEqual(repeated.disposition, 'duplicate')
         rows = self.query('SELECT source_kind,source_job_id,source_call_id,state FROM execution_runs ORDER BY rowid')
         self.assertEqual([r['source_call_id'] for r in rows], ['actual-0','actual-1','actual-2'])
         self.assertTrue(all(r['source_kind']=='collaboration' and r['source_job_id']=='job' for r in rows))
@@ -240,6 +254,9 @@ class WiringTests(unittest.TestCase):
         item['status'] = 'continue_work'
         def worker(*args):
             web.update_codex_message(1, envelope(item), 'completed')
+            execution = web.active_run(1)['execution']
+            return web.WorkerResult('completed', envelope(item),
+                                    execution.result, execution.session_validation)
         observed = []
         def kick(job):
             observed.append(self.query('SELECT state FROM execution_domains')[0]['state'])

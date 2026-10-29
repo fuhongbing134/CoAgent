@@ -2,10 +2,10 @@
 
 ## 1. 文档状态与关联
 
-- **文档状态：已决定；方案状态：已决定（接口已细化，实施待用户授权）**。entry-1891 收敛方向 A，entry-1899 经双方逐点核查收敛以下接口与事务边界；未实施、未验证。第 9 节保留实施前需落实的注入方式与展示规则。
-- 适用规范：[agent-discussion-spec v1.2.0](../specs/AGENT_DISCUSSION_SPEC.md)、[design-decision-record-spec v1.1.0](../specs/DESIGN_DECISION_RECORD_SPEC.md)。
+- **文档状态：已决定；方案状态：已实现，针对性本地回归通过；全套仍有 1 失败、1 跳过，真实环境待验收**。entry-1891 收敛方向 A，entry-1899 细化接口与事务边界；entry-1957 经用户授权完成编码，后续修正回归问题并经 DeepSeek 复审。全套检查尚未通过，不据此宣称合入门槛满足。实施结果见第 8 节，已落实的接口细节与剩余风险见第 9 节。
+- 适用规范：[agent-discussion-spec v1.2.0](../specs/AGENT_DISCUSSION_SPEC.md)、[design-decision-record-spec v1.1.0](../specs/DESIGN_DECISION_RECORD_SPEC.md)、[code-review-spec v1.0.0](../specs/CODE_REVIEW_SPEC.md)。
 - 关联：[调度计划接收设计](COLLABORATION_DISPATCH_DESIGN.md)、[设计索引](README.md)、[web_chat.py](../web_chat.py)、[collaboration_service.py](../collaboration_service.py)、[collaboration_lifecycle.py](../collaboration_lifecycle.py)、[collaboration_actions.py](../collaboration_actions.py)、[collaboration_ui.js](../collaboration_ui.js)。
-- 本文记录已完成的只读定位与讨论；代码行号为定位时位置，后续按函数定位。本轮仅写设计文档，不执行历史 job 或真实后端。
+- 本文记录前序定位、决策及本轮实施结果；历史代码行号为定位时位置，后续按函数定位。本次补记修改本文及 BACKLOG，不执行历史 job 或真实后端。
 
 ## 2. 背景与目标
 
@@ -32,7 +32,7 @@
 
 ### 4.1 接口细化
 
-以下为接口契约，尚未实现；参数名可在实施中按既有类型适配，但不得改变事务与保护边界。
+以下为已决定的接口契约，实施已完成、行为验证待执行；实际类型适配与内部扩展见第 8、9 节，不改变事务与保护边界。
 
 | 接口 | 契约与责任 |
 |---|---|
@@ -42,7 +42,7 @@
 | `finish_execution(message_id, *, outcome=None)` | 增加显式执行结果参数，协作路径必须传已确定结果。执行层结合传输、取消、运行错误、session 校验及真实退出证据判定；传输成功不等于退出已确认。普通聊天与 entry 可保留兼容行为 |
 | `InvocationResult` | 携带传输结果、原文、dispatch_allowed 与准确 message_id；job/call 由当前调用上下文关联，禁止按最新消息猜测 |
 | 内部接收结果 | 分类为 accepted / rejected / superseded / cancelled / duplicate，并携带原因；可保留 bool 兼容接口，不将 accept=False 一律视为协议拒绝。服务层接收前及事务内的旧回复失效分支都须覆盖 |
-| `finalize_message(db, *, message_id, job_id, call_id, disposition, reason="")` | 使用接收层当前事务连接，不自行开事务或 commit。由工作台提供专用实现并注入，服务层不直接依赖界面模块。核对关联与允许状态，accepted→completed；真实 rejected→保留原文、追加一次原因、failed；cancelled 不覆盖取消，duplicate 幂等无操作，superseded 单独处理且不误报协议失败，具体展示见第 9 节 |
+| `finalize_message(db, *, message_id, job_id, call_id, disposition, reason="")` | 使用接收层当前事务连接，不自行开事务或 commit。由工作台提供专用实现并注入，服务层不直接依赖界面模块。核对关联与允许状态，accepted→completed；真实 rejected→保留原文、追加一次原因、failed；cancelled 不覆盖取消，duplicate 幂等无操作，superseded 单独处理且不误报协议失败。实施增加内部 inspect 操作，只读返回当前消息状态，用于同事务取消检查，不增加接收分类、协议字段或数据库状态；具体规则见第 9 节 |
 
 普通聊天与 entry 保持各自既有完成路径；final 属于协作调用，须经过新的接收确认路径。公共 update_workbench_message 默认规则保持不变。
 
@@ -91,21 +91,37 @@
 
 ## 8. 实施与验证结果
 
-- **未实施**：前轮创建草案与登记索引；本轮仅更新本设计文档的接口决定与边界，未修改生产或测试代码。
-- 已有结果仅为前序代码只读核查、历史库 mode=ro 查询及双方讨论，不是本方案回归通过的证据。
-- 第 7 节五组完整验收仍待实施后执行；现有卡片的两个历史样本已完成 API 核查与用户页面观察（见第 9 节），不代表方向 A 已实现或验收通过。未单独验证浏览器 Network 轮询，未测量展示延迟。
+- **已实现，针对性本地回归通过，完整验收待完成**：entry-1957 中 Codex 在 `dev/failure-visibility` 编码，基线 `21bfdd2a52e8507c93a5fbd775118082e2b67836`；修改 `web_chat.py`、`collaboration_service.py`、`collaboration_lifecycle.py`、`collaboration_actions.py`，初轮生产代码新增 173 行、删除 71 行，初轮未修改测试或数据库结构。该统计为初轮快照，不含后续回归修复及测试适配。
+- 实现内容：两个 backend worker 显式返回 `WorkerResult`（保留 `status` 字段表达传输语义，并携带原文、process_result、session_validation）；`structured_worker` 校验结构化结果；`stage_collaboration_reply` 关联校验后暂存原文并保持 pending；协作路径向 `finish_execution` 传显式 outcome；`InvocationResult.message_id` 传递准确消息关联；`ReceptionResult` 分类 accepted/rejected/superseded/cancelled/duplicate，并保留 `accept` 的 bool 兼容入口；`finalize_message` 在接收层同一事务提交消息终态，覆盖普通协作 call 及澄清 replan 路径。
+- 已执行检查：`python -m py_compile web_chat.py collaboration_service.py collaboration_lifecycle.py collaboration_actions.py` 与 `git diff --check` 通过；完整 diff 自查及 AST 比对确认公共 `update_workbench_message` 未改变。这些是语法、差异与静态自查证据，不是行为回归通过。
+- 初次 DeepSeek review 为代码检视通过、未发现 P0，但验证证据不足。后续回归暴露并修正 stopped 检查顺序、旧 mock 返回 None 及 previous 分支抛错破坏幂等的问题；`test_direct_answer.py`、`test_execution_wiring.py` 的 mock 已适配 `WorkerResult`，DeepSeek 已复审这些修复。初次 review 不代替后续版本的验证，适用合入门槛为 code-review-spec §10。
+
+以下结果均来自用户在普通 PowerShell 提供的运行日志，本轮仅整理，未重新运行；日志未附被测工作区的完整版本指纹。
+
+| 命令 | 用户报告结果 | 验证边界 |
+|---|---|---|
+| `python -m unittest test_issue8 test_direct_answer` | 28 tests，OK，3.811s | 针对性调度及直接回答回归通过 |
+| `python -m unittest test_execution_wiring` | 14 tests，OK，3.817s | previous 幂等及 mock 适配回归通过；日志中的 release fault 和退出未确认异常为受控失败路径，不等于测试失败 |
+| `python -m unittest discover` | 167 tests，FAILED (failures=1, skipped=1)，22.351s；2026-10-29 19:41:11 开始 | **165 通过、1 失败、1 跳过**，全套未通过；不能记为「166 通过 + 1 跳过」 |
+
+- 唯一失败是 `test_capabilities.FrontendTests.test_polling_regressions`：`collaboration_ui.js:5` 调用 `messagesNode.before(collaborationRoot)`，`test_frontend.cjs` 的 DOM mock 缺少该方法，报 `TypeError: messagesNode.before is not a function`。DeepSeek 判为前端既有独立不匹配、非失败可见性改动引入（本次未改前端）；本轮未在旧基线上重跑确认其历史起点。已登记 [BACKLOG 第 7 项](../BACKLOG.md)。跳过项的具体原因未在本轮材料中确认。
+- **合入处置保留意见（Codex，2026-10-29 19:42:38 +08:00）**：DeepSeek 建议该独立前端问题暂缓、不阻塞本次合入；本轮记录该 reviewer 意见，但不把登记 backlog 当作豁免。全套仍失败，尚无用户对该门槛例外的明确裁决，不写成「本地替代检查全部通过」或合入条件已满足。
+- 第 7 节已有部分本地行为回归证据，但没有五组逐项完整验收记录；第 5 组真实后端及页面验收仍未做，方向 A 不标记为完整「已验证」。两个历史卡片样本的 API 核查与用户观察仅为已有卡片的证据；浏览器 Network 轮询及展示延迟仍未单独验证。
 
 ## 9. 风险、未决问题与异议
 
-- 同事务提交原则与接口契约已决定；具体依赖注入位置、回调装配方式及分类接收结果的兼容接口，实施前须落实，服务层不得直接依赖界面模块。
-- superseded（用户更新使旧回复失效）的最终展示规则实施前待定，须避免遗留 pending、误报协议失败或覆盖新结果；取消与重复结果亦须验证分类处理。
-- 接收提交前中断的识别方式及存储不可用时的反馈通道仍需在实施中落实；不能承诺数据库不可写时仍能可靠持久化错误，也不能以自动重跑填补窗口。
+- **注入与兼容接口已落实**：工作台提供 `finalize_message`，通过构造参数经 `CollaborationService → ActionStore → LifecycleStore` 逐层注入，使用接收层当前事务连接，无独立 commit；服务层不导入界面模块。`accept_result` 返回分类结果，`accept` 保留 bool 包装。运行时原子性与存储失败路径仍待验证。
+- **superseded 展示规则已落实**：保留原文，消息使用已有 `cancelled` 状态并追加「回复已失效」说明，区分失效与协议失败，不新增状态、不遗留 pending、不覆盖已确立终态。取消、失效及重复结果的竞争与幂等仍待回归。
+- **内部 inspect 扩展已补记**：`finalize_message` 的 disposition 增加内部值 `inspect`，核对关联后只读返回当前消息状态，用于同事务检查取消，不修改消息状态；它不是 `ReceptionResult` 第六类，也不是新增协议字段或数据库状态。DeepSeek 认为此扩展合理，本次同步 §4.1 契约，未改变同事务原则。
+- **previous 分支已修正为幂等返回**：初轮 previous→raise 破坏重复调用兼容，后续经回归与 review 改为从 `execution_runs.state` 获取执行状态，按 `source_message_id` 恢复暂存原文并携带准确 message_id；仅 completed/failed/cancelled 允许后续派发，不重新执行 worker、不从消息 status 反推结果。读取原文用于协议解析与重复接收判定，不用占位文本冒充合法协议。用户报告 `test_execution_wiring` 14 项通过，含真实解析、首次 accepted 与重复 duplicate 断言；不扩大为所有真实后端恢复场景均已验证。
+- **review P2 保留项**：DeepSeek 对澄清路径 `error='Invocation cancelled'` 提出 call 可能记为 failed 而非 cancelled 的语义疑点；尚未通过运行验证。接收层另有 stopped/quiescing、call 已取消及消息 inspect 检查，须结合具体分支验证，不能仅凭 error 字符串认定最终分类。本次仅记录疑点，不修改代码。
+- 接收提交前中断识别、存储不可用反馈、执行域释放失败仍待验证；不能承诺数据库不可写时仍能可靠持久化错误，也不能以自动重跑填补窗口。
 - **卡片问题已定位：非 bug，是位置问题（本次两个样本范围）**。协作卡片容器位于消息列表上方（collaboration_ui.js:3–5），此前未找到该位置；滚动到上方后用户找到了卡片。本次证据支持数据→API→前端渲染→用户可见的失败展示正常，未发现卡片渲染缺陷，不扩大为所有场景均无问题。
   - 数据/API：前轮只读查询确认 entry-1871、entry-1879 均为 failed；运行中 `GET /api/collaboration/tasks?conversation_id=default` 返回 HTTP 200，包含两样本及各自 reason。
   - 前端渲染与视觉观察：用户确认「分两阶段调研 TODO」显示「失败，3/20 轮，status/invitation conflict」，「分两阶段确认需求」显示「失败，5/20 轮，questions required only for waiting_user」。卡片的失败标签、轮次和原因均与数据库/API 一致；此处依据用户反馈，非 Agent 直接检查 DOM。
   - 验证边界：用户未找到 F12 Network，浏览器轮询频率、请求过程未单独验证；不将本次观察写成完整轮询测试通过。
-- **仍待修复：聊天消息 completed 与协作卡片 failed 不一致**。卡片正常不消除第 2、5 节已定位的消息终态缺陷；第 4 节方向 A 仍待实施。用户本轮明确仅写文档，代码实施留至明天（2026-10-29），本轮不进入实施。
-- 双方接口决定已收敛，未记录仍坚持的反对意见；B 的改动成本优势保留为反方理由，实际成本尚无量化结论。实施仍待用户授权，不能按“简单后移一行”处理。
+- **消息终态缺陷已编码修复，效果待验收**：第 2、5 节记录历史 completed/failed 不一致；第 4 节方向 A 现已实施，不能据卡片正常或代码检视通过宣称运行时缺陷已验证消除。历史任务未重放、未自动修复。
+- 方向 A 与接口决定已收敛；B 的改动成本优势保留为反方理由，实际成本尚无量化结论。用户已授权实施；剩余验证缺口及 review 疑点不因本次文档同步而关闭。
 
 ## 10. 变更历史
 
@@ -114,3 +130,5 @@
 | 2026-10-28 19:56:08 +08:00 | 分散定位与 A/B 讨论 → 独立失败可见性草案，方向 A 细化待确认 | 沉淀 entry-1885 定位与 entry-1891 双方收敛；补齐事务接收及执行域衔接边界，保留未决接口，不代表已实施 |
 | 2026-10-28 20:04:27 +08:00 | 草案/提案、接口待细化 → 文档与方案已决定，接口已细化、实施待授权 | 记录 entry-1899 逐点核查后的显式传输结果、协作暂存、执行收尾、分类接收及同事务消息确认；补齐崩溃幂等边界，保留注入方式、superseded 展示与卡片待办 |
 | 2026-10-28 20:26:23 +08:00 | 卡片不可见原因待验证 → 两样本运行时验证完成，非渲染 bug，是位置问题 | API 返回 failed+reason（HTTP 200），用户在消息列表上方找到两卡片并确认失败标签、轮次及原因；保留 Network 未单独验证边界，聊天消息一致性缺陷仍待修复，按用户要求明天再实施 |
+| 2026-10-29 19:20:28 +08:00 | 方向 A 已决定、实施待授权 → 经授权完成编码，已实现待验证；DeepSeek 代码检视通过（无 P0），暂不能合入 | 记录四文件实施、构造参数注入、superseded 展示、内部 inspect 扩展及 previous→raise 不 replay 行为收紧；P1 文档缺口本次补记待核对，五组行为回归仍未执行，P2 重试兼容与澄清取消语义待验证，不把静态检查或 review 当完整验收 |
+| 2026-10-29 19:42:38 +08:00 | 尚无行为回归结果、previous→raise → 针对性回归通过，previous 恢复幂等返回；全套 165 通过、1 失败、1 跳过 | 用户报告 issue8/direct_answer 28 项 OK、execution_wiring 14 项 OK；回归推动 stopped 顺序修复及 WorkerResult mock 适配。全套仍 FAILED，校正「166/167 通过」口径；前端 mock 问题登记 BACKLOG，reviewer 非阻塞意见与门槛豁免分开，真实环境验收仍待做 |

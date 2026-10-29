@@ -123,7 +123,8 @@ def collaboration_service():
     global COLLAB_SERVICE
     with COLLAB_SERVICE_LOCK:
         if COLLAB_SERVICE is None:
-            COLLAB_SERVICE = CollaborationService(DB_PATH, invoke_collaboration, cancel_collaboration)
+            COLLAB_SERVICE = CollaborationService(DB_PATH, invoke_collaboration, cancel_collaboration,
+                                                  finalize_message=finalize_message)
         return COLLAB_SERVICE
 
 
@@ -157,22 +158,30 @@ def invoke_collaboration(job_id, agent_id, role, prompt, *, call_id, entry_mode=
         # Recheck after serial-agent admission: another invocation may have
         # finished while this caller waited, before its call row was accepted.
         with closing(connect_workbench()) as db:
-            previous = db.execute("""SELECT r.state,m.status,m.content
-                FROM execution_runs r LEFT JOIN workbench_messages m ON m.id=r.source_message_id
+            previous = db.execute("""SELECT r.state,r.source_message_id FROM execution_runs r
                 WHERE r.source_job_id=? AND r.source_call_id=? AND r.agent_id=?
-                ORDER BY r.rowid DESC LIMIT 1""", (job_id,call_id,agent_id)).fetchone()
+                LIMIT 1""", (job_id,call_id,agent_id)).fetchone()
+            if previous:
+                # Recover the original reply for reception, not a placeholder
+                # that would be parsed as a new invalid protocol response.
+                message = db.execute('SELECT content FROM workbench_messages WHERE id=?',
+                                     (previous[1],)).fetchone()
         if previous:
-            return InvocationResult(previous[1] or 'failed', previous[2] or 'Previous execution unavailable',
-                                    previous[0] in {'completed','failed','cancelled'})
+            state = previous[0]
+            text = message[0] if message and message[0] else '重复调用，不重放；原回复不可用，需人工核查。'
+            return InvocationResult(state, text,
+                                    state in {'completed','failed','cancelled'}, previous[1])
         if service.store.snapshot(job_id)['phase'] in {'stopped', 'quiescing'}:
             return InvocationResult('cancelled', 'Cancelled before CLI start', False)
         with closing(connect_workbench()) as db, db:
             message_id = db.execute("INSERT INTO workbench_messages(conversation_id,sender_id,recipient_id,content,created_at,status) VALUES (?,?,'user','',?,'pending')",
                                     (conversation,agent_id,utc_now())).lastrowid
         register_active_run(message_id,conversation,agent_id)
+        active_run(message_id)['collaboration'] = (job_id, call_id)
         with ACTIVE_RUNS_LOCK:
             COLLAB_MESSAGES.setdefault(job_id,set()).add(message_id)
         allowed = False
+        reply = WorkerResult('cancelled', 'Cancelled before CLI start')
         previous_final = getattr(COLLAB_CONTEXT, 'final_delivery', False)
         try:
             if service.store.snapshot(job_id)['phase'] not in {'working', 'final_delivery'}:
@@ -184,22 +193,17 @@ def invoke_collaboration(job_id, agent_id, role, prompt, *, call_id, entry_mode=
                 reply = worker(conversation,prompt,message_id,message_id)
                 if not isinstance(reply, WorkerResult):
                     raise RuntimeError('Worker returned no structured result')
-                if reply.status == 'completed':
-                    # Validate before release. The service still owns atomic plan acceptance.
-                    parse_entry_response(reply.text, **({} if entry_mode else dict(
-                        role=role, phase='final_delivery' if role == 'final' else 'collaboration')))
         except Exception as error:
             active_run(message_id)['failed'] = True
-            update_workbench_message(message_id, '执行失败：' + format_execution_error(error)[:2000], 'failed')
+            reply = WorkerResult('failed', '执行失败：' + format_execution_error(error)[:2000])
+            update_workbench_message(message_id, reply.text, 'failed')
         finally:
             COLLAB_CONTEXT.final_delivery = previous_final
-            allowed = finish_execution(message_id)
+            allowed = finish_execution(message_id, outcome=reply.status)
             unregister_active_run(message_id)
             with ACTIVE_RUNS_LOCK:
                 COLLAB_MESSAGES.get(job_id,set()).discard(message_id)
-        with closing(connect_workbench()) as db:
-            row = db.execute('SELECT status,content FROM workbench_messages WHERE id=?', (message_id,)).fetchone()
-        return InvocationResult(row[0], row[1], allowed)
+        return InvocationResult(reply.status, reply.text, allowed, message_id)
 
 
 COLLAB_CONTEXT = threading.local()
@@ -1480,16 +1484,62 @@ class WorkerResult:
     session_validation: object = None
 
 
+def stage_collaboration_reply(message_id, job_id, call_id, text):
+    with closing(connect_workbench()) as db, db:
+        changed = db.execute("""UPDATE workbench_messages SET content=? WHERE id=? AND status='pending'
+            AND EXISTS (SELECT 1 FROM execution_runs r WHERE r.source_message_id=workbench_messages.id
+                        AND r.source_job_id=? AND r.source_call_id=?)""",
+            (text, message_id, job_id, call_id)).rowcount
+        if not changed:
+            row = db.execute('SELECT status FROM workbench_messages WHERE id=?', (message_id,)).fetchone()
+            if not row or row[0] != 'cancelled':
+                raise RuntimeError('Collaboration staging association/state mismatch')
+
+
+def finalize_message(db, *, message_id, job_id, call_id, disposition, reason=''):
+    """Participate in the caller's reception transaction; never commit here."""
+    row = db.execute("""SELECT m.status,m.content FROM workbench_messages m
+        JOIN execution_runs r ON r.source_message_id=m.id
+        JOIN collab_calls c ON c.job_id=r.source_job_id AND c.call_id=r.source_call_id
+        WHERE m.id=? AND r.source_job_id=? AND r.source_call_id=?
+          AND m.sender_id=c.agent_id""", (message_id,job_id,call_id)).fetchone()
+    if not row:
+        raise RuntimeError('Message/call association mismatch')
+    if disposition == 'inspect':
+        return row[0]
+    if disposition == 'duplicate' or row[0] != 'pending':
+        return  # Preserve cancellation and every established terminal state.
+    status = {'accepted':'completed', 'rejected':'failed',
+              'cancelled':'cancelled', 'superseded':'cancelled'}[disposition]
+    # Superseded is an obsolete reply, not a protocol failure; existing cancelled
+    # presentation avoids adding a schema/protocol status or leaving pending.
+    suffix = ('\n[协作回复未接收] ' + reason if disposition == 'rejected' else
+              '\n[回复已失效] ' + reason if disposition == 'superseded' else '')
+    db.execute("UPDATE workbench_messages SET content=?,status=? WHERE id=? AND status='pending'",
+               (row[1] + suffix,status,message_id))
+
+
+def worker_reply(message_id, text, status):
+    run = active_run(message_id)
+    execution = run.get('execution') if run else None
+    result = WorkerResult(status, text, execution.result if execution else None,
+                          execution.session_validation if execution else None)
+    if status == 'completed' and run and run.get('collaboration'):
+        stage_collaboration_reply(message_id, *run['collaboration'], text)
+    else:
+        update_workbench_message(message_id, text, status)
+    return result
+
+
 def structured_worker(worker):
     @wraps(worker)
     def execute(conversation, prompt, message_id, user_message_id):
-        worker(conversation, prompt, message_id, user_message_id)
-        with closing(connect_workbench()) as db:
-            row = db.execute('SELECT status,content FROM workbench_messages WHERE id=?', (message_id,)).fetchone()
-        run = active_run(message_id)
-        execution = run.get('execution') if run else None
-        return WorkerResult(row[0], row[1], execution.result if execution else None,
-                            execution.session_validation if execution else None)
+        result = worker(conversation, prompt, message_id, user_message_id)
+        if not isinstance(result, WorkerResult) or result.status not in {'completed','failed','cancelled'} or not isinstance(result.text, str):
+            raise RuntimeError('Worker returned invalid structured transport result')
+        if result.status == 'completed' and (result.process_result is None or result.session_validation is None):
+            raise RuntimeError('Successful worker result lacks execution evidence')
+        return result
     return execute
 
 
@@ -1524,7 +1574,7 @@ def begin_execution(message_id, *, source_kind, job_id=None, call_id=None):
         return run['execution']
 
 
-def finish_execution(message_id):
+def finish_execution(message_id, *, outcome=None):
     run = active_run(message_id)
     if not run or not run.get('execution'):
         return False
@@ -1533,12 +1583,14 @@ def finish_execution(message_id):
         row = None
         status_error = None
         try:
-            with closing(connect_workbench()) as db:
-                row = db.execute('SELECT status FROM workbench_messages WHERE id=?', (message_id,)).fetchone()
+            if outcome is None:
+                with closing(connect_workbench()) as db:
+                    row = db.execute('SELECT status FROM workbench_messages WHERE id=?', (message_id,)).fetchone()
         except Exception as error:
             # A failed message read must not bypass not_started finalization.
             status_error = error
-        outcome = 'failed' if run.get('failed') else row[0] if row and row[0] in {'completed', 'cancelled'} else 'failed'
+        outcome = ('failed' if run.get('failed') else outcome if outcome is not None else
+                   row[0] if row and row[0] in {'completed', 'cancelled'} else 'failed')
         if not execution.finish(outcome):
             raise RuntimeError('退出未确认；保留执行域占用，已停止后续派发，需人工核验恢复。')
         if status_error is not None:
@@ -1883,7 +1935,7 @@ def run_codex(
     prompt: str,
     assistant_message_id: int,
     user_message_id: int,
-) -> None:
+) -> WorkerResult:
     try:
         touch_agent_last_seen("codex")
         working_directory = active_run(assistant_message_id)['execution'].working_directory
@@ -1957,20 +2009,20 @@ def run_codex(
             answer = answer_path.read_text(encoding="utf-8").strip() if answer_path.exists() else ""
             if not answer:
                 raise RuntimeError("Codex 没有返回可显示的最终回复。")
-            update_codex_message(assistant_message_id, answer, "completed")
+            return worker_reply(assistant_message_id, answer, "completed")
     except AgentRunCancelled:
-        update_codex_message(assistant_message_id, "已停止。", "cancelled")
+        return worker_reply(assistant_message_id, "已停止。", "cancelled")
     except subprocess.TimeoutExpired:
         if is_run_cancelled(assistant_message_id):
-            update_codex_message(assistant_message_id, "已停止。", "cancelled")
+            return worker_reply(assistant_message_id, "已停止。", "cancelled")
         else:
-            update_codex_message(assistant_message_id, f"Codex 执行超时（{AGENT_CODEX_TIMEOUT_SECONDS} 秒）。可能已有文件修改，未自动回退。", "failed")
+            return worker_reply(assistant_message_id, f"Codex 执行超时（{AGENT_CODEX_TIMEOUT_SECONDS} 秒）。可能已有文件修改，未自动回退。", "failed")
     except Exception as error:
         if is_run_cancelled(assistant_message_id):
-            update_codex_message(assistant_message_id, "已停止。", "cancelled")
+            return worker_reply(assistant_message_id, "已停止。", "cancelled")
         else:
             message = format_execution_error(error)
-            update_codex_message(assistant_message_id, "调用 Codex 失败：" + message[:4000], "failed")
+            return worker_reply(assistant_message_id, "调用 Codex 失败：" + message[:4000], "failed")
 
 
 def resolve_dsh_desktop_runtime(command: str) -> tuple[str, str] | None:
@@ -2022,7 +2074,7 @@ def run_deepseek_harness(
     prompt: str,
     assistant_message_id: int,
     user_message_id: int,
-) -> None:
+) -> WorkerResult:
     try:
         touch_agent_last_seen("deepseek-harness")
         working_directory = active_run(assistant_message_id)['execution'].working_directory
@@ -2097,20 +2149,20 @@ def run_deepseek_harness(
         ).strip()
         if not answer:
             raise RuntimeError("DeepSeek Harness 已退出，但没有返回可显示的最终回复。")
-        update_workbench_message(assistant_message_id, answer, "completed")
+        return worker_reply(assistant_message_id, answer, "completed")
     except AgentRunCancelled:
-        update_workbench_message(assistant_message_id, "已停止。", "cancelled")
+        return worker_reply(assistant_message_id, "已停止。", "cancelled")
     except subprocess.TimeoutExpired:
         if is_run_cancelled(assistant_message_id):
-            update_workbench_message(assistant_message_id, "已停止。", "cancelled")
+            return worker_reply(assistant_message_id, "已停止。", "cancelled")
         else:
-            update_workbench_message(assistant_message_id, f"DeepSeek Harness 执行超时（{AGENT_DEEPSEEK_TIMEOUT_SECONDS} 秒）。可能已有文件修改，未自动回退。", "failed")
+            return worker_reply(assistant_message_id, f"DeepSeek Harness 执行超时（{AGENT_DEEPSEEK_TIMEOUT_SECONDS} 秒）。可能已有文件修改，未自动回退。", "failed")
     except Exception as error:
         if is_run_cancelled(assistant_message_id):
-            update_workbench_message(assistant_message_id, "已停止。", "cancelled")
+            return worker_reply(assistant_message_id, "已停止。", "cancelled")
         else:
             message = format_execution_error(error)
-            update_workbench_message(assistant_message_id, "调用 DeepSeek Harness 失败：" + message[:4000], "failed")
+            return worker_reply(assistant_message_id, "调用 DeepSeek Harness 失败：" + message[:4000], "failed")
 
 
 def run_agent_task(

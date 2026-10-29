@@ -8,8 +8,8 @@ from collaboration_lifecycle import LifecycleStore
 
 
 class ActionStore(LifecycleStore):
-    def __init__(self, path, registry=None):
-        super().__init__(path, registry)
+    def __init__(self, path, registry=None, *, finalize_message=None):
+        super().__init__(path, registry, finalize_message=finalize_message)
 
     def bind(self, job_id, conversation_id):
         if not isinstance(conversation_id, str) or not conversation_id.strip():

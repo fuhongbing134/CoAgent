@@ -231,6 +231,9 @@ class DirectAnswerTests(unittest.TestCase):
             calls.append(1)
             update(1, envelope(answer()), 'completed')
             self.assertEqual(self.web_row()[1], 'pending')
+            execution = web.active_run(1)['execution']
+            return web.WorkerResult('completed', envelope(answer()),
+                                    execution.result, execution.session_validation)
         mention = '@Codex' if agent == 'codex' else '@DeepSeek Harness'
         with patch.object(web, worker_name, scripted_worker(worker)), patch.object(web, 'collaboration_service', side_effect=AssertionError('no execution service')):
             web.run_agent_task(agent, 'chat', mention + ' Q?', 1, 0)
@@ -264,6 +267,10 @@ class DirectAnswerTests(unittest.TestCase):
                     def worker(*args):
                         if outcome != 'no_reply':
                             update(1, envelope(answer()), outcome)
+                            execution = web.active_run(1)['execution']
+                            return web.WorkerResult(outcome, envelope(answer()),
+                                                    execution.result, execution.session_validation)
+                        # Deliberately violate the contract only for no_reply.
                     with patch.object(web, name, scripted_worker(worker)), patch.object(web, 'collaboration_service', side_effect=AssertionError('no execution')):
                         web.run_agent_task(agent, 'chat', mention + ' Q?', 1, 0)
                     self.assertEqual(self.web_row()[1], 'cancelled' if outcome == 'cancelled' else 'failed')
@@ -274,7 +281,7 @@ class DirectAnswerTests(unittest.TestCase):
         self.setup_web()
         def worker(*args):
             web.stop_active_run(1)
-            web.update_workbench_message(1, envelope(answer()), 'completed')
+            return web.worker_reply(1, envelope(answer()), 'completed')
         with patch.object(web, 'run_codex', scripted_worker(worker)):
             web.run_agent_task('codex', 'chat', '@Codex Q?', 1, 0)
         self.assertEqual(self.web_row()[1], 'cancelled')
@@ -287,7 +294,7 @@ class DirectAnswerTests(unittest.TestCase):
             web.stop_active_run(1)
             return result
         def worker(*args):
-            web.update_codex_message(1, envelope(answer()), 'completed')
+            return web.worker_reply(1, envelope(answer()), 'completed')
         with patch.object(web, 'run_codex', scripted_worker(worker)), patch.object(web, 'parse_entry_response', parse_then_stop):
             web.run_agent_task('codex', 'chat', '@Codex Q?', 1, 0)
         self.assertEqual(self.web_row()[1], 'cancelled')
@@ -300,7 +307,7 @@ class DirectAnswerTests(unittest.TestCase):
         item = payload()
         item['status'] = 'continue_work'
         def worker(*args):
-            web.update_codex_message(1, envelope(item), 'completed')
+            return web.worker_reply(1, envelope(item), 'completed')
         with patch.object(web, 'run_codex', scripted_worker(worker)), patch.object(web, 'collaboration_service', return_value=service), patch.object(service, 'kick') as kick:
             web.run_agent_task('codex', 'chat', '@Codex Work', 1, 0)
         kick.assert_called_once_with('entry-1')
@@ -310,7 +317,7 @@ class DirectAnswerTests(unittest.TestCase):
     def test_web_protocol_error_preserves_reply(self):
         self.setup_web()
         def worker(*args):
-            web.update_codex_message(1, envelope(payload()), 'completed')
+            return web.worker_reply(1, envelope(payload()), 'completed')
         with patch.object(web, 'run_codex', scripted_worker(worker)):
             web.run_agent_task('codex', 'chat', '@Codex Q?', 1, 0)
         content, state = self.web_row()
@@ -323,7 +330,7 @@ class DirectAnswerTests(unittest.TestCase):
         with closing(sqlite3.connect(self.path)) as db, db:
             db.execute("CREATE TRIGGER fail_insert BEFORE INSERT ON collaboration_entry_results BEGIN SELECT RAISE(ABORT,'injected'); END")
         def worker(*args):
-            web.update_codex_message(1, envelope(answer()), 'completed')
+            return web.worker_reply(1, envelope(answer()), 'completed')
         with patch.object(web, 'run_codex', scripted_worker(worker)):
             web.run_agent_task('codex', 'chat', '@Codex Q?', 1, 0)
         self.assertEqual(self.web_row()[1], 'failed')
@@ -336,7 +343,7 @@ class DirectAnswerTests(unittest.TestCase):
         item = payload()
         item['status'] = 'continue_work'
         def worker(*args):
-            web.update_codex_message(1, envelope(item), 'completed')
+            return web.worker_reply(1, envelope(item), 'completed')
         with patch.object(web, 'run_codex', scripted_worker(worker)), patch.object(web, 'collaboration_service', side_effect=RuntimeError('register unavailable')):
             web.run_agent_task('codex', 'chat', '@Codex Work', 1, 0)
         self.assertEqual(self.web_row()[1], 'failed')

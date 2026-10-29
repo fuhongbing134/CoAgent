@@ -17,6 +17,11 @@ class InvocationResult:
     state: str
     text: str
     dispatch_allowed: bool
+    message_id: int | None = None
+
+    def __iter__(self):
+        # Preserve tuple unpacking for scripted transports and clarification.
+        return iter((self.state, self.text))
 
 
 class DispatchHalted(RuntimeError):
@@ -24,8 +29,8 @@ class DispatchHalted(RuntimeError):
 
 
 class CollaborationService:
-    def __init__(self, path, invoke, cancel):
-        self.store = ActionStore(path)
+    def __init__(self, path, invoke, cancel, *, finalize_message=None):
+        self.store = ActionStore(path, finalize_message=finalize_message)
         self.invoke = invoke
         self.cancel = cancel
         self._guard = threading.Lock()
@@ -153,7 +158,7 @@ class CollaborationService:
             if isinstance(result, InvocationResult):
                 if not result.dispatch_allowed:
                     raise DispatchHalted(result.text or 'Execution not released')
-                return result.state, result.text
+                return result
             # Scripted transports used by protocol tests have no process ownership.
             return result
         except Exception as error:
@@ -183,31 +188,29 @@ class CollaborationService:
             "全部任务结束才completed。负责人邀请必须末行独立@名称，任务必须在当前计划中。最终交付只汇总已有材料，不使用修改工具、不再邀请，"
             "材料不足如实披露，状态completed。\n当前角色：" + role + "\n当前任务：" + instruction +
             "\n完整材料：" + json.dumps(dict(view=view,tasks=tasks,calls=calls),ensure_ascii=False))
-        state,text = self._invoke(job_id,agent_id,role,prompt,call_id)
+        invocation = self._invoke(job_id,agent_id,role,prompt,call_id)
+        state,text = invocation
+        message_id = getattr(invocation, 'message_id', None)
         self.events(job_id)
-        if self.store.snapshot(job_id)["phase"] in {"stopped","quiescing","final_ready"} and role != "final":
-            return None
         try:
+            if state != 'completed':
+                raise ValueError(state)
             readable,payload = parse_entry_response(text,role=role,phase="final_delivery" if role=="final" else "collaboration")
-            if role == "owner" and len(self.material(job_id)[0]["updates"]) != update_count:
-                with self.store.transaction() as db:
-                    db.execute("UPDATE collab_calls SET state='completed',text=?,payload=? WHERE job_id=? AND call_id=? AND state='reserved'",
-                               (readable,json.dumps(payload,ensure_ascii=False),job_id,call_id))
-                return {"status": "user_update_received"}
             if role == "owner":
                 # Check the parsed input using the invocation snapshot, but pass
                 # the unmerged payload to accept for transactional revalidation.
                 normalize_owner_plan(payload.get("plan", MISSING_PLAN), view["plan"],
                                      status=payload["status"], registry=self.store.registry)
-            ok = self.store.accept(job_id,call_id,text,payload,invitation_ids=terminal_invitation(text),
-                                   error=None if state=="completed" else state,
-                                   expected_updates=update_count if role=="owner" else None)
-            if not ok and role == "owner" and len(self.material(job_id)[0]["updates"]) != update_count:
-                return {"status": "user_update_received"}
         except ValueError as error:
-            self.store.accept(job_id,call_id,text,error=str(error))
-            return None
-        return payload if ok else None
+            receipt = self.store.accept_result(job_id,call_id,text,error=str(error),
+                        expected_updates=update_count if role=='owner' else None, message_id=message_id)
+            return {'status': 'user_update_received'} if receipt.disposition == 'superseded' else None
+        receipt = self.store.accept_result(job_id,call_id,text,payload,invitation_ids=terminal_invitation(text),
+                                   error=None if state=="completed" else state,
+                                   expected_updates=update_count if role=="owner" else None, message_id=message_id)
+        if receipt.disposition == 'superseded':
+            return {'status': 'user_update_received'}
+        return payload if receipt else None
 
     def drive(self, job_id):
         try:
@@ -312,9 +315,12 @@ class CollaborationService:
             self.store.prepare_final(job_id,"澄清额度用尽；尚未确定完整分工")
             return
         request = view["request"] + "\n用户补充：\n" + "\n".join(u["content"] for u in view["updates"])
-        state,raw = self._invoke(job_id,agent_id,"owner",entry_prompt(request),call_id,entry_mode=True)
+        invocation = self._invoke(job_id,agent_id,"owner",entry_prompt(request),call_id,entry_mode=True)
+        state,raw = invocation
+        message_id = getattr(invocation, 'message_id', None)
         self.events(job_id)
         if self.store.snapshot(job_id)["phase"] in {"stopped","quiescing","final_ready"}:
+            self.store.accept_result(job_id,call_id,raw,error='Invocation cancelled',message_id=message_id)
             return
         try:
             _,payload = parse_entry_response(raw)
@@ -323,26 +329,39 @@ class CollaborationService:
             if payload["status"] == "completed" and payload["plan"]["owner_id"] != agent_id:
                 raise ValueError("direct clarification answer cannot change owner")
         except ValueError as error:
-            self.store.accept(job_id,call_id,raw,error=str(error))
+            self.store.accept_result(job_id,call_id,raw,error=str(error),
+                                     expected_updates=update_count,message_id=message_id)
             return
         with self.store.transaction() as db:
+            def finalize(disposition, reason=''):
+                return self.store.finalize(db, message_id=message_id, job_id=job_id,
+                              call_id=call_id, disposition=disposition, reason=reason)
             job = self.store._job(db, job_id)
             life = db.execute("SELECT * FROM collab_lifecycle WHERE job_id=?", (job_id,)).fetchone()
             call = db.execute("SELECT * FROM collab_calls WHERE job_id=? AND call_id=?", (job_id,call_id)).fetchone()
             if job["stopped"] or life["phase"] != "working" or not call or call["state"] != "reserved":
+                finalize('cancelled' if job['stopped'] or (call and call['state']=='cancelled') else 'superseded',
+                         'Clarification is no longer current')
+                return
+            if finalize('inspect') == 'cancelled':
+                db.execute("UPDATE collab_calls SET state='cancelled' WHERE job_id=? AND call_id=?", (job_id,call_id))
                 return
             if db.execute("SELECT 1 FROM collab_calls WHERE job_id=? AND state='reserved' AND call_id!=?", (job_id,call_id)).fetchone():
+                finalize('superseded', 'Another invocation is reserved')
                 return
             current_count = db.execute("SELECT count(*) FROM collab_user_updates WHERE job_id=?", (job_id,)).fetchone()[0]
             if current_count != update_count:
                 db.execute("UPDATE collab_calls SET state='completed',text=? WHERE job_id=? AND call_id=?", (raw,job_id,call_id))
+                finalize('superseded', 'User update superseded this reply')
                 return  # drive obtains a fresh view; stale answers cannot finish the job.
             if not self._clarification_source(db, job_id):
                 db.execute("UPDATE collab_calls SET state='failed',text=? WHERE job_id=? AND call_id=?", (raw,job_id,call_id))
                 db.execute("UPDATE collab_lifecycle SET phase='failed',reason='Unverified clarification placeholder' WHERE job_id=?", (job_id,))
+                finalize('rejected', 'Unverified clarification placeholder')
                 return
             db.execute("UPDATE collab_calls SET state='completed',text=?,payload=? WHERE job_id=? AND call_id=? AND state='reserved'",
                        (raw,json.dumps(payload,ensure_ascii=False),job_id,call_id))
+            finalize('accepted')
             if payload["status"] == "completed":
                 plan = json.loads(job["plan"])
                 plan["final_responder_id"] = payload["plan"]["final_responder_id"]

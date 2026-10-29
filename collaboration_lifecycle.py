@@ -3,14 +3,32 @@
 import json
 from contextlib import closing
 import sqlite3
+from dataclasses import dataclass
 
 from collaboration_batches import BatchStore
 from collaboration_protocol import MISSING_PLAN, normalize_owner_plan, validate_payload
 
 
+@dataclass(frozen=True)
+class ReceptionResult:
+    disposition: str
+    reason: str = ''
+
+    def __bool__(self):
+        return self.disposition == 'accepted'
+
+
 class LifecycleStore(BatchStore):
-    def __init__(self, path, registry=None):
+    def __init__(self, path, registry=None, *, finalize_message=None):
         super().__init__(path, registry)
+        self.finalize_message = finalize_message
+
+    def finalize(self, db, *, message_id, job_id, call_id, disposition, reason=''):
+        if message_id is not None:
+            if self.finalize_message is None:
+                raise RuntimeError('Message finalizer required')
+            return self.finalize_message(db, message_id=message_id, job_id=job_id,
+                                  call_id=call_id, disposition=disposition, reason=reason)
 
     def initialize(self, job_id, *, round_limit=20, entry_rounds=1):
         if type(round_limit) is not int or round_limit < 2 or type(entry_rounds) is not int or not 0 <= entry_rounds < round_limit:
@@ -75,24 +93,46 @@ class LifecycleStore(BatchStore):
             return True
 
     def accept(self, job_id, call_id, text, payload=None, *, invitation_ids=(), error=None, expected_updates=None):
+        return bool(self.accept_result(job_id, call_id, text, payload,
+                    invitation_ids=invitation_ids, error=error, expected_updates=expected_updates))
+
+    def accept_result(self, job_id, call_id, text, payload=None, *, invitation_ids=(),
+                      error=None, expected_updates=None, message_id=None):
         """Accept a transport outcome once. Invalid protocols fail, never complete."""
         if not isinstance(text, str):
             raise ValueError("result text required")
         with self.transaction() as db:
             job = self._job(db, job_id)
-            if job["stopped"]:
-                return False
+            def result(disposition, reason=''):
+                self.finalize(db, message_id=message_id, job_id=job_id,
+                              call_id=call_id, disposition=disposition, reason=reason)
+                return ReceptionResult(disposition, reason)
+            if job['stopped']:
+                return result('cancelled', 'Invocation cancelled')
             _, life, plan = self._life(db, job_id)
             call = db.execute("SELECT * FROM collab_calls WHERE job_id=? AND call_id=?", (job_id,call_id)).fetchone()
             if call is None:
                 raise ValueError("unknown call")
+            message_state = self.finalize(db, message_id=message_id, job_id=job_id,
+                                          call_id=call_id, disposition='inspect')
+            if message_state == 'cancelled':
+                db.execute("UPDATE collab_calls SET state='cancelled' WHERE job_id=? AND call_id=? AND state='reserved'",
+                           (job_id,call_id))
+                return result('cancelled', 'Message cancelled before reception')
+            if call['state'] == 'cancelled' or life['phase'] in {'quiescing', 'stopped'}:
+                return result('cancelled', 'Invocation cancelled')
             if call["state"] != "reserved":
-                return False
+                same = call['text'] == text
+                if not same:
+                    # Reject the conflicting submission without rewriting the
+                    # previously established call/message/lifecycle outcome.
+                    return ReceptionResult('rejected', 'Conflicting late result ignored')
+                return result('duplicate')
             if expected_updates is not None:
                 updates = db.execute("SELECT count(*) FROM collab_user_updates WHERE job_id=?", (job_id,)).fetchone()[0]
                 if updates != expected_updates:
                     db.execute("UPDATE collab_calls SET state='completed',text=? WHERE job_id=? AND call_id=?", (text,job_id,call_id))
-                    return False
+                    return result('superseded', 'User update superseded this reply')
             try:
                 if error is not None:
                     raise ValueError(str(error))
@@ -116,7 +156,7 @@ class LifecycleStore(BatchStore):
                 db.execute("UPDATE collab_calls SET state='failed',text=? WHERE job_id=? AND call_id=?", (text,job_id,call_id))
                 if call["role"] != "collaborator":
                     db.execute("UPDATE collab_lifecycle SET phase='failed',reason=? WHERE job_id=?", (str(exc),job_id))
-                return False
+                return result('rejected', str(exc))
             if amended != plan:
                 old_ids = {t["task_id"] for t in plan["tasks"]}
                 db.executemany("INSERT INTO collab_tasks(job_id,task_id,agent_id,instruction,deps) VALUES (?,?,?,?,?)",
@@ -131,7 +171,7 @@ class LifecycleStore(BatchStore):
             status = validated["status"]
             if call["role"] == "collaborator":
                 # Even the final responder may be a middle-stage collaborator.
-                return True
+                return result('accepted')
             if call["role"] == "final":
                 db.execute("UPDATE collab_lifecycle SET phase='completed',final_text=? WHERE job_id=?", (text,job_id))
             elif status in {"waiting_user", "blocked"}:
@@ -146,7 +186,7 @@ class LifecycleStore(BatchStore):
                     same = plan["owner_id"] == plan["final_responder_id"]
                     db.execute("UPDATE collab_lifecycle SET phase=?,final_text=? WHERE job_id=?",
                                ("completed" if same else "final_ready",text if same else "",job_id))
-            return True
+            return result('accepted')
 
     def prepare_final(self, job_id, reason):
         """Explicit early/quota delivery: abandon pending work only after active calls end."""
