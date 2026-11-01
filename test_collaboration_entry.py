@@ -49,7 +49,7 @@ class EntryTests(unittest.TestCase):
         self.assertEqual(route_message("@DeepSeek Harness 汇总，@Codex 调研"), (["deepseek-harness"], True))
         for text in ("hello", "`@Codex`", "```\n@Codex\n```", r"\@Codex", "mail@codex.com", "https://host/@Codex", "@all @Codex"):
             with self.subTest(text=text):
-                self.assertEqual(route_message(text), (["codex", "deepseek-harness"], False))
+                self.assertEqual(route_message(text), (["codex", "deepseek-harness", "grok"], False))
 
     def test_prompt_retains_request_and_contract(self):
         text = "@Codex 查成本，@DeepSeek 查性能"

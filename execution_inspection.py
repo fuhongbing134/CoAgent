@@ -29,7 +29,8 @@ def _rows(db, sql, parameters=()):
 def canonical_adapter(agent_id):
     return {'codex': 'codex', 'dsh': 'dsh',
             'deepseek-harness': 'dsh',
-            'deepseek-harness-headless': 'dsh'}.get(agent_id, agent_id)
+            'deepseek-harness-headless': 'dsh',
+            'grok': 'grok', 'grok-headless': 'grok'}.get(agent_id, agent_id)
 
 
 def _key(row):
@@ -74,6 +75,8 @@ def read_execution_records(db):
         binding['adapter_id'] = canonical_adapter(binding['agent_id'])
         if binding['adapter_id'] == 'dsh':
             binding['agent_id'] = 'deepseek-harness'
+        elif binding['adapter_id'] == 'grok':
+            binding['agent_id'] = 'grok'
         binding['backend_scope'] = None
         binding['scope_relation'] = 'scope_unknown'
     return dict(domains=domains, runs=runs, sessions=sessions, bindings=bindings)

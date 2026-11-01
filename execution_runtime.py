@@ -139,7 +139,8 @@ class Execution:
             if event.get('type') in {'error', 'turn.failed'}:
                 backend_error = True
             key = ('thread_id' if adapter_id == 'codex' and event.get('type') == 'thread.started'
-                   else 'sessionId' if adapter_id == 'dsh' and event.get('type') == 'session' else None)
+                   else 'sessionId' if adapter_id == 'dsh' and event.get('type') == 'session'
+                   else 'sessionId' if adapter_id == 'grok' and event.get('type') == 'end' else None)
             if key and isinstance(event.get(key), str) and event[key].strip():
                 ids.add(event[key])
         with self.lock:

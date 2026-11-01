@@ -25,7 +25,7 @@ class FoundationTests(unittest.TestCase):
         registry = default_registry()
         self.assertEqual(registry.resolve("@DeepSeek Harness").agent_id, "deepseek-harness")
         self.assertEqual(registry.resolve("OPENAI").agent_id, "codex")
-        self.assertEqual(len(registry.enabled_agents()), 2)
+        self.assertEqual(len(registry.enabled_agents()), 3)
 
     def test_registry_rejections(self):
         for field, value in [("enabled", 1), ("adapter", "unknown"), ("agent_id", "bad id"), ("aliases", [""])]:
