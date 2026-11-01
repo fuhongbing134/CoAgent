@@ -4,6 +4,7 @@
 
 | 主题 | 文档路径 | 现状 |
 |---|---|---|
+| 用户期望对齐规范 | [EXPECTATION_ALIGNMENT_DESIGN.md](EXPECTATION_ALIGNMENT_DESIGN.md) | 两份规范补齐期望基线、逐步核对和纠偏，实施与检查结果见正文，待非作者审核 |
 | Grok 适配修正 | [GROK_ADAPTATION_DESIGN.md](GROK_ADAPTATION_DESIGN.md) | 权限、终态、会话及三Agent测试修正，待非作者检视与真实验收 |
 | 协作任务交接与计划接收 | [COLLABORATION_DISPATCH_DESIGN.md](COLLABORATION_DISPATCH_DESIGN.md) | 方案已实现（normalize_owner_plan 归一化），三组回归通过；真实环境增量追加已验证一条路径，最终收尾另有协议失败，详见正文 |
 | 失败可见性 | [FAILURE_VISIBILITY_DESIGN.md](FAILURE_VISIBILITY_DESIGN.md) | 已实现：协作回复暂存 + 接收后同事务确认终态（方向A）；本地回归 165 通过/1 前端既有失败/1 跳过，真实环境消息与 job 内失败可见性已验证，已合入 main |
