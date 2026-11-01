@@ -84,7 +84,7 @@ class GitAutomation:
         credential_args = []
         if task.secure_credentials:
             environment['GCM_CREDENTIAL_STORE'] = 'wincredman'
-            credential_args = ['-c','credential.helper=', '-c','credential.helper=manager']
+            credential_args = ['-c','credential.helper=', '-c','credential.helper=manager-core']
         gate = self.before_start(task, args) if self.before_start else nullcontext()
         with gate:
             process = subprocess.Popen([self.executable, '-C', str(task.directory), *credential_args, *args],

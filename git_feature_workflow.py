@@ -396,7 +396,7 @@ class GitFeatureWorkflow:
                            GCM_CREDENTIAL_STORE='wincredman', GCM_GITHUB_AUTHMODES='browser',
                            GCM_PROVIDER='github', GCM_TRACE='0', GCM_TRACE_SECRETS='0')
         command = [self.api.executable, '-C', feature['directory'], '-c','credential.helper=',
-                   '-c','credential.helper=manager','credential','fill']
+                   '-c','credential.helper=manager-core','credential','fill']
         try:
             result = subprocess.run(command, input=b'protocol=https\nhost=github.com\n\n',
                                     stdout=subprocess.PIPE, stderr=subprocess.DEVNULL,

@@ -452,7 +452,7 @@ class FeatureTests(unittest.TestCase):
             self.assertEqual(run.call_count,2)
             command=run.call_args_list[0].args[0]
             self.assertIn('credential.helper=',command)
-            self.assertIn('credential.helper=manager',command)
+            self.assertIn('credential.helper=manager-core',command)
             environment=run.call_args_list[0].kwargs['env']
             self.assertEqual(environment['GCM_CREDENTIAL_STORE'],'wincredman')
             self.assertEqual(environment['GCM_GITHUB_AUTHMODES'],'browser')
