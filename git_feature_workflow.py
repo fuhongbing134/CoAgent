@@ -469,11 +469,39 @@ class GitFeatureWorkflow:
 
     def release_if_done(self, job, tasks):
         feature = self.get(job)
-        if feature and feature['state'] == 'succeeded' and not any(
-                t['state']=='pending' and t.get('git_stage') for t in tasks):
-            with self.store.transaction() as db:
-                return bool(db.execute('DELETE FROM git_repo_owners WHERE job_id=?',(job,)).rowcount)
-        return False
+        if not feature:
+            return False
+        succeeded = feature['state'] == 'succeeded' and not any(
+            t['state']=='pending' and t.get('git_stage') for t in tasks)
+        if not succeeded:
+            if (feature['state'] != 'registered' or feature.get('rounds') != []
+                    or any(feature.get(k) for k in
+                           ('review_id', 'commit_id', 'branch_outcome', 'result'))):
+                return False
+            try:
+                branch = feature['branch']
+                if not branch or self.probe(feature['directory'], 'for-each-ref',
+                                            '--format=%(refname)', 'refs/heads/'+branch):
+                    return False
+            except (GitAutomationError, OSError, KeyError):
+                return False
+        with self.store.transaction() as db:
+            if not succeeded:
+                row = db.execute('''SELECT j.stopped,l.phase FROM collab_jobs j
+                    JOIN collab_lifecycle l USING(job_id) WHERE j.job_id=?''', (job,)).fetchone()
+                pending = db.execute("SELECT 1 FROM collab_events WHERE job_id=? AND kind LIKE 'cancel_then_%' AND state!='done'", (job,)).fetchone()
+                confirmed_stop = row and row[0] and db.execute(
+                    "SELECT 1 FROM collab_events WHERE job_id=? AND kind='cancel_then_stop' AND state='done'", (job,)).fetchone()
+                if not row or pending or not (row[1] == 'completed' or confirmed_stop):
+                    return False
+                if db.execute('SELECT 1 FROM git_feature_reviews WHERE job_id=?', (job,)).fetchone():
+                    return False
+                try:
+                    self.assert_released(db, job)
+                except FeaturePaused:
+                    return False
+            return bool(db.execute('DELETE FROM git_repo_owners WHERE repository=? AND job_id=?',
+                                   (feature['repository'], job)).rowcount)
 
     def snapshot(self, job):
         feature = self.get(job)

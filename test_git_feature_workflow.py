@@ -85,6 +85,110 @@ class FeatureTests(unittest.TestCase):
     def task(self,index=0):
         return copy.deepcopy(self.plan['tasks'][index])
 
+    def registered_owner(self, phase='completed'):
+        feature = dict(state='registered', rounds=[], branch='feature/unstarted',
+                       directory=str(self.repo), repository=str(self.repo))
+        self.workflow.save('job', feature)
+        with self.service.store.transaction() as db:
+            db.execute('INSERT OR REPLACE INTO git_repo_owners VALUES (?,?)', (str(self.repo), 'job'))
+            db.execute('UPDATE collab_lifecycle SET phase=? WHERE job_id=?', (phase, 'job'))
+        return feature
+
+    def owner_present(self):
+        with self.service.store.transaction() as db:
+            return bool(db.execute('SELECT 1 FROM git_repo_owners WHERE job_id=?', ('job',)).fetchone())
+
+    def test_unstarted_terminal_release_is_idempotent(self):
+        self.registered_owner()
+        self.assertTrue(self.workflow.release_if_done('job', []))
+        self.assertFalse(self.workflow.release_if_done('job', []))
+        self.assertIsNotNone(self.workflow.get('job'))
+
+    def test_unstarted_release_retains_on_probe_failure_or_changed_owner(self):
+        self.registered_owner()
+        with patch.object(self.workflow, 'probe', side_effect=GitAutomationError('read failed')):
+            self.assertFalse(self.workflow.release_if_done('job', []))
+        self.assertTrue(self.owner_present())
+        with self.service.store.transaction() as db:
+            db.execute("UPDATE git_repo_owners SET job_id='new-owner'")
+        self.assertFalse(self.workflow.release_if_done('job', []))
+        with self.service.store.transaction() as db:
+            self.assertEqual(db.execute('SELECT job_id FROM git_repo_owners').fetchone()[0], 'new-owner')
+
+    def test_unstarted_release_retains_protected_evidence(self):
+        for state in ('branch_intent', 'ready', 'coding', 'reviewing', 'approved', 'push_pending'):
+            with self.subTest(state=state):
+                feature = self.registered_owner()
+                feature['state'] = state
+                self.workflow.save('job', feature)
+                self.assertFalse(self.workflow.release_if_done('job', []))
+                self.assertTrue(self.owner_present())
+        for key, value in [('rounds', ['review']), ('review_id', 'review'),
+                           ('commit_id', 'commit'), ('branch_outcome', 'unknown')]:
+            with self.subTest(key=key):
+                feature = self.registered_owner()
+                feature[key] = value
+                self.workflow.save('job', feature)
+                self.assertFalse(self.workflow.release_if_done('job', []))
+        self.registered_owner()
+        with self.service.store.transaction() as db:
+            db.execute('INSERT INTO git_feature_reviews VALUES (?,?,?)', ('branch_old', 'job', '{}'))
+        self.assertFalse(self.workflow.release_if_done('job', []))
+        with self.service.store.transaction() as db:
+            db.execute('DELETE FROM git_feature_reviews')
+        self.git('branch', 'feature/unstarted')
+        self.assertFalse(self.workflow.release_if_done('job', []))
+
+    def test_unstarted_release_requires_terminal_or_confirmed_stop(self):
+        self.registered_owner('working')
+        self.assertFalse(self.workflow.release_if_done('job', []))
+        with self.service.store.transaction() as db:
+            db.execute("UPDATE collab_jobs SET stopped=1 WHERE job_id='job'")
+            db.execute("UPDATE collab_lifecycle SET phase='quiescing' WHERE job_id='job'")
+        self.assertFalse(self.workflow.release_if_done('job', []))
+        with self.service.store.transaction() as db:
+            db.execute("INSERT INTO collab_events(job_id,operation_id,kind,state) VALUES ('job','stop','cancel_then_stop','done')")
+        self.assertTrue(self.workflow.release_if_done('job', []))
+
+    def test_terminal_kick_cleans_outside_control_loop(self):
+        self.registered_owner()
+        finished = threading.Event()
+        original = self.workflow.release_if_done
+        def release(*args):
+            try:
+                return original(*args)
+            finally:
+                finished.set()
+        with patch.object(self.workflow, 'release_if_done', side_effect=release):
+            self.assertTrue(self.service.kick('job'))
+            self.assertTrue(finished.wait(10))
+        # Wait for the worker to release the job lock before fixture cleanup.
+        self.assertTrue(self.service._locks['job'].acquire(timeout=10))
+        self.service._locks['job'].release()
+        self.assertFalse(self.owner_present())
+
+    def test_remote_action_excludes_cleanup_with_existing_job_lock(self):
+        self.registered_owner('working')
+        entered, finish = threading.Event(), threading.Event()
+        def remote(*args):
+            entered.set()
+            self.assertTrue(finish.wait(10))
+        with patch.object(self.workflow, 'user_action', side_effect=remote):
+            thread = threading.Thread(target=self.service.git_user_action,
+                                      args=('job', 'room-job', 'remote', 'origin'))
+            thread.start()
+            try:
+                self.assertTrue(entered.wait(10))
+                self.assertFalse(self.service.kick('job'))
+                self.assertTrue(self.owner_present())
+                with self.service.store.transaction() as db:
+                    db.execute("UPDATE collab_lifecycle SET phase='completed' WHERE job_id='job'")
+            finally:
+                finish.set()
+                thread.join(10)
+        self.assertTrue(self.service._locks['job'].acquire(timeout=10))
+        self.service._locks['job'].release()
+
     def test_host_chain_from_plan_runs_and_pushes(self):
         self.service.drive('job')
         feature=self.workflow.get('job')

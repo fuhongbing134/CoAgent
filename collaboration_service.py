@@ -114,7 +114,12 @@ class CollaborationService:
                     db.execute("UPDATE collab_lifecycle SET phase='failed',reason=? WHERE job_id=? AND phase NOT IN ('completed','quiescing')",
                                (str(error),job_id))
             finally:
-                lock.release()
+                try:
+                    self.release_git_ownership(job_id)
+                except Exception:
+                    logging.exception('Git ownership cleanup failed for %s; retaining ownership', job_id)
+                finally:
+                    lock.release()
                 with self._guard:
                     again = job_id in self._rerun
                     self._rerun.discard(job_id)
@@ -122,6 +127,22 @@ class CollaborationService:
                     self.kick(job_id)
         threading.Thread(target=drive, daemon=True).start()
         return True
+
+    def release_git_ownership(self, job_id, tasks=None):
+        if not self.git_workflow:
+            return
+        if tasks is None:
+            with self.store.transaction() as db:
+                tasks = [dict(r) for r in db.execute('SELECT * FROM collab_tasks WHERE job_id=?', (job_id,))]
+                plan = json.loads(self.store._job(db, job_id)['plan'])
+            definitions = {t['task_id']: t for t in plan['tasks']}
+            for task in tasks:
+                task['git_stage'] = definitions.get(task['task_id'], {}).get('git_stage')
+        if self.git_workflow.release_if_done(job_id, tasks):
+            with self.store.transaction() as db:
+                waiting = [r[0] for r in db.execute('SELECT job_id FROM git_features WHERE job_id!=?', (job_id,))]
+            for waiting_job in waiting:
+                self.kick(waiting_job)
 
     def events(self, job_id):
         with self._event_lock:
@@ -267,11 +288,7 @@ class CollaborationService:
             definitions = {t['task_id']:t for t in plan['tasks']}
             for task in tasks:
                 task.update({k:v for k,v in definitions.get(task['task_id'],{}).items() if k == 'git_stage'})
-            if self.git_workflow and self.git_workflow.release_if_done(job_id,tasks):
-                with self.store.transaction() as db:
-                    waiting = [r[0] for r in db.execute("SELECT job_id FROM git_features WHERE job_id!=?",(job_id,))]
-                for waiting_job in waiting:
-                    self.kick(waiting_job)
+            self.release_git_ownership(job_id, tasks)
             # Latest owner invitation authorizes only those collaborator tasks.
             with self.store.transaction() as db:
                 auth = db.execute("SELECT targets FROM collab_authorizations WHERE job_id=?", (job_id,)).fetchone()

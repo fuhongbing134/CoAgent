@@ -80,6 +80,8 @@ Git Popen 启动与停止接收共用短时进程内门闩，检查事务结束�
 
 占用释放轻量修复（entry-2340，待实施、未验证）：`release_if_done` 只在 `succeeded` 释放 `git_repo_owners` 占用，已收尾 job 的 feature 停在 `registered` 时占用永久残留，永久排队后续 `git_stage` 任务。轻量修复：扩展 `release_if_done`，仅当 job 已 `completed` 或停止确认完成、feature 仍为 `registered`、`rounds` 为空、无 review/commit/分支操作记录、目标分支引用不存在时，按 `repository + job_id` 精确删除占用；`branch_intent` 及之后一律保留。清理在持有同一 job 锁的调度退出处调用（非 `while control()` 内），复用现有唤醒。`registered` 下的 `remote add` 只改 `.git/config` 的 remote 段、非功能分支现场，不回滚，用同一 job 锁排除进行中窗口。不引入写意图表、放弃标记、queued 状态、failed/interrupted 恢复或通用恢复；崩溃残留进程、跨进程与外部 Git 写入保持占用人工处理。旧 `entry-2285` 执行同一预检后定向删占用，未批准直接执行。
 
+实施结果（entry-2364）：上述轻量路径已编码；调度线程在释放同一 job 锁之前调用清理，成功后复用原有等待功能唤醒。停止必须有已完成的 cancel_then_stop 事件且 Agent 执行已释放；分支查询失败或存在操作记录时保留占用。历史方案状态由「待实施、未验证」推进为「已实现、隔离测试通过，待非作者审核及工作台验收」。本地验证：`python -B -m unittest test_git_feature_workflow -q` 36 项通过，另增查询失败/新 owner 保护测试单跑 1 项通过；`test_git_automation` 17 项、`test_collaboration_service` 6 项通过，AST 与 diff 检查通过。测试使用临时 SQLite 和 Git 仓库，remote 互斥测试模拟阻塞的用户操作，不代表真实 GitHub 登录验收。运行中工作台须加载新代码后才使用本修复；未改生产数据库、未提交或推送，重启未知现场仍按原边界人工处理。
+
 ## 变更历史
 
 | 时间 | 原记录 → 当前决定 | 原因 |
