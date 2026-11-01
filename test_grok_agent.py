@@ -31,11 +31,17 @@ class GrokAgentTests(unittest.TestCase):
         p, cwd = Path('p.txt'), Path('w')
         new = web_chat.build_grok_command('grok', p, cwd, None, False)
         self.assertEqual(new, ['grok', '--prompt-file', 'p.txt', '--output-format', 'streaming-json',
-                               '--cwd', 'w', '--always-approve'])
+                               '--cwd', 'w', '--permission-mode', 'auto', '--no-subagents'])
+        self.assertNotIn('--always-approve', new)
+        self.assertNotIn('--deny', new)
         final = web_chat.build_grok_command('grok', p, cwd, 'abc-1', True)
         self.assertIn('--resume', final)
         self.assertEqual(final[final.index('--resume') + 1], 'abc-1')
         self.assertNotIn('--always-approve', final)
+        self.assertEqual(final[final.index('--permission-mode') + 1], 'dontAsk')
+        self.assertEqual(final[final.index('--deny') + 1], '*')
+        self.assertIn('--no-subagents', final)
+        self.assertIn('--disable-web-search', final)
         self.assertNotIn('--session-id', final)
 
     def test_output_parsing(self):

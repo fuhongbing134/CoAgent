@@ -69,7 +69,7 @@ def _legacy_sessions(db):
         reasons = []
         if key.startswith('discussion:'):
             reasons.append('isolated_discussion_key')
-        elif key not in ('codex','deepseek-harness-headless'):
+        elif key not in ('codex','deepseek-harness-headless','grok','grok-headless'):
             reasons.append('unrecognized_legacy_key')
         if not sid:
             reasons.append('empty_session_id')
@@ -113,7 +113,7 @@ def _execution_candidates(db):
                 if isinstance(decoded,list) and len(decoded)==3 and decoded[0]==source and decoded[2]==room and decoded[1] in source_keys:
                     original = decoded[1]
         candidate['original_agent_key'] = original
-        agent = {'codex':'codex','deepseek-harness':'deepseek-harness','deepseek-harness-headless':'deepseek-harness'}.get(original,original)
+        agent = {'codex':'codex','deepseek-harness':'deepseek-harness','deepseek-harness-headless':'deepseek-harness','grok':'grok','grok-headless':'grok'}.get(original,original)
         groups.setdefault((agent,room),[]).append(candidate)
     for (agent,room),candidates in sorted(groups.items()):
         # No guessed backend scope, workspace, generation or resumable ID.

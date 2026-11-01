@@ -224,6 +224,9 @@ class DirectAnswerTests(unittest.TestCase):
     def test_web_deepseek_direct_answer_full_path_and_duplicate(self):
         self.direct_answer_path('deepseek-harness', 'run_deepseek_harness', web.update_workbench_message)
 
+    def test_web_grok_direct_answer_full_path_and_duplicate(self):
+        self.direct_answer_path('grok', 'run_grok', web.update_workbench_message)
+
     def direct_answer_path(self, agent, worker_name, update):
         self.setup_web()
         calls = []
@@ -234,7 +237,7 @@ class DirectAnswerTests(unittest.TestCase):
             execution = web.active_run(1)['execution']
             return web.WorkerResult('completed', envelope(answer()),
                                     execution.result, execution.session_validation)
-        mention = '@Codex' if agent == 'codex' else '@DeepSeek Harness'
+        mention = {'codex':'@Codex', 'deepseek-harness':'@DeepSeek Harness', 'grok':'@Grok'}[agent]
         with patch.object(web, worker_name, scripted_worker(worker)), patch.object(web, 'collaboration_service', side_effect=AssertionError('no execution service')):
             web.run_agent_task(agent, 'chat', mention + ' Q?', 1, 0)
             web.run_agent_task(agent, 'chat', mention + ' Q?', 1, 0)

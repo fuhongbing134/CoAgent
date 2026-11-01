@@ -37,8 +37,7 @@ def probe(backend):
                   exit_evidence=None, error_type=None, winerror=None,
                   stdout_preview='', stderr_preview='')
     try:
-        resolver = (web_chat.resolve_codex_command if backend == 'codex'
-                    else web_chat.resolve_dsh_command)
+        resolver = {'codex': web_chat.resolve_codex_command, 'deepseek-harness': web_chat.resolve_dsh_command, 'grok': web_chat.resolve_grok_command}[backend]
         resolved = resolver()
         report['resolved'] = resolved
         if not resolved:
@@ -46,7 +45,7 @@ def probe(backend):
                           note='Environment lookup failed; missing path or access restriction, not necessarily an installation failure.')
             return report
         env = os.environ.copy()
-        if backend == 'codex':
+        if backend in {'codex', 'grok'}:
             command = [resolved, '--version']
         else:
             command, use_shell, electron = web_chat.build_dsh_command(resolved, ['--version'])
@@ -91,7 +90,7 @@ def main():
     emit(dict(scope='version_only', full_backend_acceptance='not_tested',
               note='No Agent sessions or database operations. Temporary stdio files/processes are created; --version behavior belongs to each CLI.'))
     reports = []
-    for backend in ('codex', 'deepseek-harness'):
+    for backend in ('codex', 'deepseek-harness', 'grok'):
         report = probe(backend)
         reports.append(report)
         emit(report)

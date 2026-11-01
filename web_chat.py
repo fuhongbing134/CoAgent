@@ -25,6 +25,8 @@ from pathlib import Path
 from urllib.parse import parse_qs, urlparse
 
 
+from agent_registry import default_registry
+from grok_adapter import command as grok_command_args, parse_output as grok_parse_output, diagnostic as grok_diagnostic, requested_recipients
 from database_schema import ensure_schema, require_current
 from migration_barrier import MigrationBarrier
 from service_instance import ServiceInstanceLock
@@ -627,7 +629,7 @@ function completeMention(index) {
 }
 
 function agentLabel(agentId) {
-  return agentId === "deepseek-harness" ? "DeepSeek Harness" : agentId === "grok" ? "Grok" : "Codex";
+  return ({codex:"Codex", "deepseek-harness":"DeepSeek Harness", grok:"Grok"})[agentId] || String(agentId);
 }
 
 function updateComposer() {
@@ -965,7 +967,7 @@ composerNode.addEventListener("submit", async function(event) {
     const response = await fetch("/api/messages", {
       method:"POST",
       headers:{"Content-Type":"application/json"},
-      body:JSON.stringify({conversation_id:selectedConversation, content:content})
+      body:JSON.stringify({conversation_id:selectedConversation, content:content, recipients:recipients})
     });
     const payload = await response.json();
     if (!response.ok) throw new Error(payload.error || "HTTP " + response.status);
@@ -1642,7 +1644,8 @@ def run_managed_process(message_id: int, command: list[str], **kwargs) -> subpro
     if run['agent_id'] == 'codex':
         snapshot['sandbox'] = command[command.index('--sandbox') + 1]
     elif run['agent_id'] == 'grok':
-        snapshot['permission_mode'] = 'always-approve' if '--always-approve' in command else 'default'
+        snapshot['permission_mode'] = command[command.index('--permission-mode') + 1]
+        snapshot['tools_denied'] = '--deny' in command and command[command.index('--deny') + 1] == '*'
     else:
         snapshot['profile'] = command[command.index('--profile') + 1]
         patch = command[command.index('--patch') + 1]
@@ -2032,40 +2035,12 @@ def run_deepseek_harness(
 
 def build_grok_command(grok_command: str, prompt_path: Path, working_directory: Path,
                        session_id: str | None, final_delivery: bool) -> list[str]:
-    """Headless Grok Build launch; final delivery keeps the default (read-only) mode."""
-    command = [grok_command, "--prompt-file", str(prompt_path),
-               "--output-format", "streaming-json", "--cwd", str(working_directory)]
-    if session_id:
-        command += ["--resume", session_id]
-    if not final_delivery:
-        command.append("--always-approve")
-    return command
+    """Explicit tool approvals; final denies tools, not a Windows OS sandbox."""
+    return grok_command_args(grok_command, prompt_path, working_directory, session_id, final_delivery)
 
 
 def parse_grok_output(stdout: str) -> tuple[str, str | None, list[str], list[str]]:
-    """Return (answer, session_id, error_messages, permission_notes) from NDJSON stdout."""
-    texts, errors, notes = [], [], []
-    session_id = None
-    for line in stdout.splitlines():
-        stripped = line.strip()
-        if not stripped:
-            continue
-        try:
-            event = json.loads(stripped)
-        except json.JSONDecodeError:
-            if stripped.lower().startswith("permission required:"):
-                notes.append(stripped)
-            continue
-        if not isinstance(event, dict):
-            continue
-        kind = event.get("type")
-        if kind == "text" and isinstance(event.get("data"), str):
-            texts.append(event["data"])
-        elif kind == "end" and isinstance(event.get("sessionId"), str) and event["sessionId"].strip():
-            session_id = event["sessionId"]
-        elif kind == "error":
-            errors.append(str(event.get("message") or "Grok CLI error"))
-    return "".join(texts).strip(), session_id, errors, notes
+    return grok_parse_output(stdout)
 
 
 @structured_worker
@@ -2112,18 +2087,28 @@ def run_grok(
                 timeout=AGENT_GROK_TIMEOUT_SECONDS,
             )
         answer, new_session_id, error_messages, permission_notes = parse_grok_output(result.stdout)
-        if not session_id and new_session_id:
-            if active_run(assistant_message_id)['execution'].session_claim is None:
-                save_agent_session_id(conversation_id, GROK_SESSION_KEY, new_session_id)
+        if session_id and new_session_id != session_id:
+            error_messages.append('Grok resumed session ID mismatch')
         if result.returncode != 0 or error_messages:
-            diagnostic = (result.stderr or "").strip()
+            diagnostic = grok_diagnostic((result.stderr or "").strip())
             diagnostic = next(iter(error_messages), "") or diagnostic or "Grok CLI 执行失败"
+            if permission_notes:
+                diagnostic += '\n' + '\n'.join(permission_notes)
             raise RuntimeError(diagnostic[:4000])
         if not answer:
             raise RuntimeError("Grok 已退出，但没有返回可显示的最终回复。")
+        if is_run_cancelled(assistant_message_id):
+            raise AgentRunCancelled()
+        if not session_id and new_session_id:
+            run = active_run(assistant_message_id)
+            with run['state_lock']:
+                if run['cancel_requested']:
+                    raise AgentRunCancelled()
+                if run['execution'].session_claim is None:
+                    save_agent_session_id(conversation_id, GROK_SESSION_KEY, new_session_id)
         if permission_notes:
-            answer += ("\n\n[工作台提示] 以下操作因无界面运行无法审批而未执行：\n"
-                       + "\n".join(note[:500] for note in permission_notes[:10]))
+            answer = ("[工作台提示] CLI 诊断（已截断并脱敏）：\n"
+                      + "\n".join(permission_notes) + '\n\n' + answer)
         return worker_reply(assistant_message_id, answer, "completed")
     except AgentRunCancelled:
         return worker_reply(assistant_message_id, "已停止。", "cancelled")
@@ -2141,11 +2126,8 @@ def run_grok(
 
 
 def agent_worker(agent_id: str):
-    if agent_id == "codex":
-        return run_codex
-    if agent_id == "grok":
-        return run_grok
-    return run_deepseek_harness
+    adapter = default_registry().require(agent_id).adapter
+    return {'codex': run_codex, 'dsh': run_deepseek_harness, 'grok': run_grok}[adapter]
 
 
 def run_agent_task(
@@ -2299,7 +2281,7 @@ class ChatHandler(BaseHTTPRequestHandler):
                  "cli_found": available["codex_cli_available"]},
                 {"id": "deepseek-harness", "name": "DeepSeek Harness", "configuration": f"--profile {DSH_PROFILE}; 未显式传入 sandbox 参数，其他策略未知",
                  "cli_found": available["dsh_cli_available"]},
-                {"id": "grok", "name": "Grok", "configuration": "--always-approve（最终交付阶段为默认只读审批模式）",
+                {"id": "grok", "name": "Grok", "configuration": "普通：auto，工具可能被拒绝、不等待人工批准；最终交付：dontAsk + deny全部工具（非Windows OS沙箱）",
                  "cli_found": available["grok_cli_available"]},
             ],
         }
@@ -2514,14 +2496,20 @@ class ChatHandler(BaseHTTPRequestHandler):
             self.send_json(400, {"error": "conversation_id 不能为空且不能超过 200 个字符"})
             return
         recipients, agent_prompts = resolve_message_recipients(content)
+        try:
+            recipients = requested_recipients(recipients, payload.get('recipients'), route_message(content)[1])
+            agent_prompts = {key: agent_prompts[key] for key in recipients}
+        except ValueError as error:
+            self.send_json(400, {'error': str(error)})
+            return
         if not recipients or not agent_prompts:
             self.send_json(400, {"error": "请在 Agent 名称后输入要发送的消息"})
             return
 
         if "grok" in recipients and not resolve_grok_command():
-            if len(recipients) == 1:
+            if len(recipients) == 1 or payload.get('recipients') is not None:
                 self.send_json(503, {
-                    "error": "找不到 Grok CLI。请安装 Grok Build（grok）并登录；也可设置 GROK_CLI 为 grok.exe 的完整路径。"
+                    "error": "Grok CLI 不可用，请刷新可用名单后重试；也可设置 GROK_CLI 为 grok.exe 的完整路径。"
                 })
                 return
             # A missing Grok never blocks a broadcast to the other Agents.

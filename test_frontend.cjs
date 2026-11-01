@@ -53,6 +53,21 @@ async function flush() { for(let i=0;i<12;i++) await Promise.resolve(); }
     assert.equal(e.nodes.get('agents').textContent,expected.length ? expected.map(id=>e.run(`agentLabel(${JSON.stringify(id)})`)).join(' / ') : '\u6682\u65e0\u53ef\u7528 Agent');
   }
   assert.equal(e.run('collaborationRoot.parent===taskHost'),true);
+  e.run("renderRecipients([],true,false,true)");
+  assert.deepEqual(Array.from(e.run("recipientsForText('@Grok hello')")),['grok']);
+  for (const alias of ['@xai','@grok-build']) {
+    e.context.alias=alias;
+    assert.deepEqual(Array.from(e.run("recipientsForText(alias+' hello')")),['grok']);
+  }
+  assert.deepEqual(Array.from(e.run("recipientsForText('@all hello')")),['codex','deepseek-harness','grok']);
+  assert.equal(e.run("agentLabel('unknown')"),'unknown');
+  e.run("pendingAgents=new Set(['grok']); document.getElementById('message-input').value='@Grok hello'; updateComposer()");
+  assert.equal(e.nodes.get('send-button').disabled,true);
+  e.run("pendingAgents.clear(); renderRecipients([],true,false,false); updateComposer()");
+  assert.deepEqual(Array.from(e.run("recipientsForText('@all hello')")),['codex','deepseek-harness']);
+  assert.equal(e.nodes.get('send-button').disabled,true);
+  e.run("renderRecipients([],true,false,true); updateComposer()");
+  assert.equal(e.nodes.get('send-button').disabled,false);
   const n=environment(true);
   assert.equal(n.nodes.get('task-panel').open,false);
   n.nodes.get('task-panel').open=true;

@@ -143,6 +143,10 @@ class Execution:
                    else 'sessionId' if adapter_id == 'grok' and event.get('type') == 'end' else None)
             if key and isinstance(event.get(key), str) and event[key].strip():
                 ids.add(event[key])
+        if adapter_id == 'grok':
+            from grok_adapter import parse_output
+            _text, _sid, errors, _notes = parse_output(output)
+            backend_error = backend_error or bool(errors)
         with self.lock:
             expected = self.session_claim.expected_id if self.session_claim else None
             actual = next(iter(ids)) if len(ids) == 1 else None
