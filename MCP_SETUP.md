@@ -23,6 +23,38 @@ env = { AGENT_BRIDGE_AGENT_ID = "grok", AGENT_BRIDGE_DB = "C:/Users/FHB/Document
 
 这个本地 MCP 服务让多个 Agent 通过同一份 SQLite 消息记录互相登记、发消息和读取对话。它只共享通过消息桥发送的内容，不会读取双方完整的私有聊天记录。
 
+## Git 工作台适配器（需宿主显式配置）
+
+新增 `git_workbench.py` 使用同一 MCP 依赖。为 Codex、DeepSeek Harness、Grok 分别增加 stdio 服务：command 为现有 Python，args 为 `["项目绝对路径/git_workbench.py", "--config", "仓库外/host.json", "--executor", "codex"]`；其他两个 executor 分别使用 `deepseek-harness`、`grok`。沿用各客户端上述/下述 MCP 配置格式，不覆盖消息桥。本次没有安装这些用户配置。
+
+正常权限的 MCP 宿主是执行入口。配置服务不会授予 OS 权限；沙箱内运行仍受原限制，不能借本入口绕过 `.git` 只读。操作者应先在隔离仓库验收权限，并保证同一时间一个功能占用目录。
+
+宿主配置示例（路径均替换为真实绝对路径；不向 Agent 开放此文件写权限）：
+
+```json
+{
+  "database": "C:/host/agent_bridge.db",
+  "approvals": "C:/host/git-approvals",
+  "results": "C:/host/git-results",
+  "tasks": {
+    "task-id": {
+      "job_id": "job-id",
+      "directory": "C:/project",
+      "branch": "feature/example",
+      "base_commit": "完整40或64位commit ID",
+      "remote": "origin",
+      "executors": ["codex", "deepseek-harness", "grok"]
+    }
+  }
+}
+```
+
+目录必须已存在。任务 ID 和 job ID 必须与工作台真实记录一致，对话必须保存显式工作目录；适配器只读数据库，不创建或迁移表。任务的 author 从数据库取得。配置及两个状态目录均放在任务仓库外，并以 ACL 保护；executor 是受信启动配置，不是凭证。配置在进程启动时读取，修改任务绑定后须重启适配器；数据库停止状态和目录每次调用重新核对。
+
+审核完成后，宿主/reviewer 在 approvals 下保存 `<task-id>.json`，字段为 `task_id, branch, base_commit, author, reviewer, approved:true, content`。非作者 reviewer 核对实际差异后，使用同一配置实例的 `host.api.content(task_id, files)` 取得 content（文件名到模式/blob ID 的映射，删除为 null）；此只读辅助调用不构成批准，不能由作者自行写入批准。MCP 不开放此辅助函数或审批入口。宿主负责保存审核证据和只读 ACL，不自动把任务 completed 当作审核通过。
+
+执行结果仅写入 results 下对应 JSON，approval 文件保持原样；批准变动而已有执行记录时拒绝，交宿主核实。只注册 `create_branch(task_id,name)` 和 `commit_and_push(task_id,branch,files,message)`。调用异常由 MCP 标记失败；不要把缺批准文件的错误当作可以跳过审核。
+
 ## 1. 安装依赖
 
 在 PowerShell 进入本目录后运行：

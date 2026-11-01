@@ -8,7 +8,7 @@
 | 协作任务交接与计划接收 | [COLLABORATION_DISPATCH_DESIGN.md](COLLABORATION_DISPATCH_DESIGN.md) | 方案已实现（normalize_owner_plan 归一化），三组回归通过；真实环境增量追加已验证一条路径，最终收尾另有协议失败，详见正文 |
 | 失败可见性 | [FAILURE_VISIBILITY_DESIGN.md](FAILURE_VISIBILITY_DESIGN.md) | 已实现：协作回复暂存 + 接收后同事务确认终态（方向A）；本地回归 165 通过/1 前端既有失败/1 跳过，真实环境消息与 job 内失败可见性已验证，已合入 main |
 | 通用工具授权 | [TOOL_AUTHORIZATION_DESIGN.md](TOOL_AUTHORIZATION_DESIGN.md) | 草案待详细讨论；四级分类与能力目录提案，未实施、未改变权限 |
-| 统一 Git 提交服务 | [GIT_COMMIT_SERVICE_DESIGN.md](GIT_COMMIT_SERVICE_DESIGN.md) | 总体设计定稿、待实施；全员 MCP 接入、按任务授权、跨进程协调提交，身份/锁/恢复等细节待决，首期不开放 push |
+| 最小 Git 自动化 | [GIT_COMMIT_SERVICE_DESIGN.md](GIT_COMMIT_SERVICE_DESIGN.md) | 共用模块已提交；双操作 stdio MCP 适配已实现待审核，宿主配置、真实权限及客户端验收待完成；锁/worktree 留后 |
 | 工作台 UI 简化 | [UI_SIMPLIFICATION_DESIGN.md](UI_SIMPLIFICATION_DESIGN.md) | 设计已决定，本轮实施中；精简 Agent 与目录界面、任务迁侧栏，回归及浏览器验收待完成 |
 
 本索引不代表目录中其他既有设计或研究文档已迁移或完成新规范核查。本次未增加 docs 索引的自动注入。
