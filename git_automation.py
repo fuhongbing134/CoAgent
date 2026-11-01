@@ -13,6 +13,7 @@ import re
 import shutil
 import subprocess
 import tempfile
+from contextlib import nullcontext
 
 
 class GitAutomationError(RuntimeError):
@@ -27,6 +28,9 @@ class GitTask:
     remote: str
     author: str
     executor: str
+    remote_digest: str | None = None
+    secure_credentials: bool = False
+    owned_index_tree: str | None = None
 
 
 class JsonReviewStore:
@@ -61,22 +65,38 @@ class JsonReviewStore:
 
 
 class GitAutomation:
-    def __init__(self, resolve_task, reviews, *, executable=None, timeout=60):
+    def __init__(self, resolve_task, reviews, *, executable=None, timeout=60, before_start=None):
         self.resolve_task = resolve_task
         self.reviews = reviews
         self.executable = executable or shutil.which('git')
         if not self.executable:
             raise GitAutomationError('Git unavailable')
         self.timeout = timeout
+        self.before_start = before_start
 
     def _git(self, task, *args, check=True):
         """The single subprocess boundary, also the future coordination hook."""
         environment = {k: v for k, v in os.environ.items()
                        if not k.upper().startswith('GIT_')}
-        environment.update(GIT_TERMINAL_PROMPT='0', GIT_LITERAL_PATHSPECS='1')
-        result = subprocess.run([self.executable, '-C', str(task.directory), *args],
-                                stdout=subprocess.PIPE, stderr=subprocess.PIPE,
-                                env=environment, timeout=self.timeout, shell=False)
+        environment.update(GIT_TERMINAL_PROMPT='0', GIT_LITERAL_PATHSPECS='1',
+                           GCM_INTERACTIVE='never', GCM_GUI_PROMPT='0',
+                           GCM_TRACE='0', GCM_TRACE_SECRETS='0')
+        credential_args = []
+        if task.secure_credentials:
+            environment['GCM_CREDENTIAL_STORE'] = 'wincredman'
+            credential_args = ['-c','credential.helper=', '-c','credential.helper=manager']
+        gate = self.before_start(task, args) if self.before_start else nullcontext()
+        with gate:
+            process = subprocess.Popen([self.executable, '-C', str(task.directory), *credential_args, *args],
+                                       stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+                                       env=environment, shell=False)
+        try:
+            stdout, stderr = process.communicate(timeout=self.timeout)
+        except subprocess.TimeoutExpired:
+            process.kill()
+            process.communicate()
+            raise
+        result = subprocess.CompletedProcess(process.args, process.returncode, stdout, stderr)
         if check and result.returncode:
             # Do not return stderr: remote/hook output may contain credentials.
             raise GitAutomationError('Git operation failed: ' + args[0])
@@ -211,7 +231,8 @@ class GitAutomation:
         if self._head(task) != task.base_commit:
             raise GitAutomationError('Reviewed baseline changed')
         if self._git(task, 'diff', '--cached', '--name-only', '-z').stdout:
-            raise GitAutomationError('Existing staged content must be preserved')
+            if not task.owned_index_tree or self._text(task,'write-tree') != task.owned_index_tree:
+                raise GitAutomationError('Existing staged content must be preserved')
         if self._content(task, files) != record['content']:
             raise GitAutomationError('Reviewed content changed')
         # Fixed existing remote; no URL accepted from the operation.
@@ -237,6 +258,9 @@ class GitAutomation:
         try:
             result = self._git(task, 'commit', '-m', text, check=False)
             failed = result.returncode != 0
+            record['operation']['commit_exit_confirmed'] = True
+            record['operation']['commit_returncode'] = result.returncode
+            self.reviews.write(task_id, record)
         except (subprocess.TimeoutExpired, OSError):
             failed = True
         return self._resume(task_id, task, record, commit_failed=failed)
@@ -271,7 +295,8 @@ class GitAutomation:
             self.reviews.write(task_id, record)
         except OSError:
             return dict(commit_id=head, push_status='not_started', error='Review writeback failed')
-        if commit_failed:
+        if commit_failed or (operation.get('commit_exit_confirmed') is True
+                             and operation.get('commit_returncode',0) != 0):
             return dict(commit_id=head, push_status='not_started', error='Commit exists; command failed, inspect hooks')
         target = 'refs/heads/' + task.branch
         try:
@@ -302,3 +327,5 @@ class GitAutomation:
         push = self._text(task, 'remote', 'get-url', '--push', '--all', task.remote).splitlines()
         if len(fetch) != 1 or push != fetch:
             raise GitAutomationError('Distinct/multiple push destinations unsupported')
+        if task.remote_digest and hashlib.sha256(fetch[0].encode()).hexdigest() != task.remote_digest:
+            raise GitAutomationError('Remote destination changed since feature registration')

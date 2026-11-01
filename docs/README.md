@@ -1,5 +1,11 @@
 # docs/ — 设计文档索引
 
+## 文档分类决策（2026-11-01）
+
+已决定并实施：按用户要求，docs 保持方案/技术决策目录，另设 [guides/](../guides/README.md) 存放操作指南，specs 保持行为规范目录。Git 使用指南回答操作问题，与设计背景和取舍不同。独立 guides 保留现有设计路径；未采用 docs/design 和 docs/guides，因为这会改变 docs 的目录定位。
+
+本次仅迁移 Git 使用指南，保留内容并修正相对链接，新增目录说明、更新入口，不批量整理其他文档或改变代码及历史审核证据。验收方式为迁移内容比较、本地链接检查及既有代码哈希比较，均已通过。真实 Git 环境验收仍待用户执行；本次不代表全部文档完成分类盘点，无其他未决分类事项。
+
 本目录存放方案/技术决策的设计文档，按 [design-decision-record-spec](../specs/DESIGN_DECISION_RECORD_SPEC.md) 维护。索引按「主题 → 文档路径 → 一句话现状」定位，同主题连续演进优先更新已有文档，较大的独立方案再拆分并互相引用。
 
 | 主题 | 文档路径 | 现状 |
@@ -8,7 +14,7 @@
 | 协作任务交接与计划接收 | [COLLABORATION_DISPATCH_DESIGN.md](COLLABORATION_DISPATCH_DESIGN.md) | 方案已实现（normalize_owner_plan 归一化），三组回归通过；真实环境增量追加已验证一条路径，最终收尾另有协议失败，详见正文 |
 | 失败可见性 | [FAILURE_VISIBILITY_DESIGN.md](FAILURE_VISIBILITY_DESIGN.md) | 已实现：协作回复暂存 + 接收后同事务确认终态（方向A）；本地回归 165 通过/1 前端既有失败/1 跳过，真实环境消息与 job 内失败可见性已验证，已合入 main |
 | 通用工具授权 | [TOOL_AUTHORIZATION_DESIGN.md](TOOL_AUTHORIZATION_DESIGN.md) | 草案待详细讨论；四级分类与能力目录提案，未实施、未改变权限 |
-| 最小 Git 自动化 | [GIT_COMMIT_SERVICE_DESIGN.md](GIT_COMMIT_SERVICE_DESIGN.md) | 共用模块已提交；双操作 stdio MCP 适配已实现待审核，宿主配置、真实权限及客户端验收待完成；锁/worktree 留后 |
+| 最小 Git 自动化 | [GIT_COMMIT_SERVICE_DESIGN.md](GIT_COMMIT_SERVICE_DESIGN.md) | P2.1 宿主功能阶段流程已编码，隔离验证后送双审核；真实登录、权限与三 Agent 用户验收待完成；[使用说明](../guides/GIT_WORKFLOW_USAGE.md) |
 | 工作台 UI 简化 | [UI_SIMPLIFICATION_DESIGN.md](UI_SIMPLIFICATION_DESIGN.md) | 设计已决定，本轮实施中；精简 Agent 与目录界面、任务迁侧栏，回归及浏览器验收待完成 |
 
 本索引不代表目录中其他既有设计或研究文档已迁移或完成新规范核查。本次未增加 docs 索引的自动注入。

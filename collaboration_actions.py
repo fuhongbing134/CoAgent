@@ -5,6 +5,7 @@ import sqlite3
 from contextlib import closing
 
 from collaboration_lifecycle import LifecycleStore
+from git_workflow_gate import GIT_START_GATE
 
 
 class ActionStore(LifecycleStore):
@@ -40,7 +41,7 @@ class ActionStore(LifecycleStore):
         if action != "set_limit" and round_limit is not None:
             raise ValueError("round_limit only allowed for set_limit")
         body = json.dumps(dict(action=action,content=content,round_limit=round_limit),sort_keys=True)
-        with self.transaction() as db:
+        with GIT_START_GATE, self.transaction() as db:
             self._authorize(db, job_id, conversation_id)
             prior = db.execute("SELECT body FROM collab_operations WHERE job_id=? AND operation_id=?", (job_id,operation_id)).fetchone()
             if prior:

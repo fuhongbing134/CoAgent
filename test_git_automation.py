@@ -58,6 +58,31 @@ class GitAutomationTests(unittest.TestCase):
         self.assertEqual(self.call('ls-remote', 'origin', 'refs/heads/feature/test').split()[0], result['commit_id'])
         self.assertEqual(self.call('ls-remote', 'origin', 'refs/heads/main'), '')
 
+    def test_real_post_commit_hook_failure_does_not_make_git_commit_fail(self):
+        self.prepare()
+        (self.repo/'.git/hooks/post-commit').write_text('#!/bin/sh\nexit 1\n')
+        result=self.api.commit_and_push('t1','feature/test',['a.txt'],'feature')
+        operation=self.store.read('t1')['operation']
+        self.assertEqual(operation['commit_returncode'],0)
+        self.assertEqual(result['push_status'],'succeeded')
+
+    def test_confirmed_nonzero_commit_is_not_pushed_on_later_recovery(self):
+        self.prepare()
+        original=self.api._git
+        def nonzero(task,*args,**kwargs):
+            result=original(task,*args,**kwargs)
+            if args[0]=='commit':
+                return subprocess.CompletedProcess(result.args,1,result.stdout,result.stderr)
+            return result
+        with patch.object(self.api,'_git',side_effect=nonzero):
+            first=self.api.commit_and_push('t1','feature/test',['a.txt'],'feature')
+        self.assertIsNotNone(first['commit_id'])
+        with patch.object(self.api,'_git',wraps=original) as calls:
+            second=self.api.commit_and_push('t1','feature/test',['a.txt'],'feature')
+        self.assertEqual(second['push_status'],'not_started')
+        self.assertFalse(any('push' in call.args[1:] for call in calls.call_args_list))
+        self.assertEqual(self.call('ls-remote','origin'),'')
+
     def test_main_and_duplicate_rejected(self):
         with self.assertRaises(GitAutomationError):
             self.api.create_branch('t1', 'main')

@@ -37,6 +37,8 @@ from collaboration_lifecycle import LifecycleStore
 from collaboration_actions import ActionStore
 from collaboration_http import handle_action_request
 from collaboration_service import CollaborationService, InvocationResult
+from git_feature_workflow import GitFeatureWorkflow
+from git_feature_http import handle_git_action
 from execution_runtime import Execution, ExecutionAdmissionError, format_execution_error
 from execution_inspection import InspectionQueryError, read_occupancy_snapshot
 from execution_tracking import DomainBusy, invalidate_sessions
@@ -93,7 +95,7 @@ def _env_positive_int(name: str, default: int) -> int:
 
 # 上下文注入配置：仅控制「保留的正文」长度与条数，省略提示不占用这些上限。
 AGENT_CONTEXT_MAX_MESSAGES = _env_positive_int("AGENT_CONTEXT_MAX_MESSAGES", 30)
-AGENT_CONTEXT_MAX_MESSAGE_CHARS = _env_positive_int("AGENT_CONTEXT_MAX_MESSAGE_CHARS", 3000)
+AGENT_CONTEXT_MAX_MESSAGE_CHARS = _env_positive_int("AGENT_CONTEXT_MAX_MESSAGE_CHARS", 10000)
 AGENT_CODEX_TIMEOUT_SECONDS = _env_positive_int("AGENT_CODEX_TIMEOUT_SECONDS", 1200)
 AGENT_DEEPSEEK_TIMEOUT_SECONDS = _env_positive_int("AGENT_DEEPSEEK_TIMEOUT_SECONDS", 1200)
 AGENT_GROK_TIMEOUT_SECONDS = _env_positive_int("AGENT_GROK_TIMEOUT_SECONDS", 1200)
@@ -131,8 +133,17 @@ def collaboration_service():
     with COLLAB_SERVICE_LOCK:
         if COLLAB_SERVICE is None:
             COLLAB_SERVICE = CollaborationService(DB_PATH, invoke_collaboration, cancel_collaboration,
-                                                  finalize_message=finalize_message)
+                                                  finalize_message=finalize_message,
+                                                  git_factory=lambda store: GitFeatureWorkflow(store, git_job_directory))
         return COLLAB_SERVICE
+
+
+def git_job_directory(job_id):
+    with closing(connect_workbench()) as db:
+        row = db.execute('SELECT conversation_id FROM collab_bindings WHERE job_id=?', (job_id,)).fetchone()
+    if not row:
+        raise ValueError('Missing conversation for Git feature')
+    return resolve_working_directory(row[0])
 
 
 def cancel_collaboration(job_id):
@@ -759,6 +770,21 @@ async function collaborationAction(task, action, button, content = "", roundLimi
   } finally { button.disabled = false; }
 }
 
+async function gitFeatureAction(task, action, button, remote = null) {
+  if (button.dataset.conversation !== selectedConversation) return;
+  button.disabled = true;
+  try {
+    const response = await fetch('/api/git/action', {
+      method:'POST', headers:{'Content-Type':'application/json','X-Capability-Token':capabilityToken},
+      body:JSON.stringify({job_id:task.state.job_id,conversation_id:selectedConversation,action,remote})
+    });
+    const data = await response.json();
+    if (!response.ok) throw new Error(data.error || 'Git操作失败');
+    collaborationSignature = '';
+  } catch(error) { alert(String(error.message || error)); }
+  finally { button.disabled = false; }
+}
+
 function renderCollaboration(tasks, conversation) {
   if (conversation !== selectedConversation) return;
   if (conversation !== collaborationConversation) resetCollaboration(conversation);
@@ -787,7 +813,7 @@ function renderCollaboration(tasks, conversation) {
     }
     const oldDetails = card.querySelector("details");
     const oldAnswer = card.querySelector("textarea");
-    const oldLimit = card.querySelector("input");
+    const oldLimit = card.querySelector(".round-limit-input");
     const focused = document.activeElement;
     const focusKind = oldAnswer && focused === oldAnswer ? "textarea" : oldLimit && focused === oldLimit ? "input" : null;
     const selection = oldAnswer && [oldAnswer.selectionStart, oldAnswer.selectionEnd];
@@ -802,6 +828,32 @@ function renderCollaboration(tasks, conversation) {
     card.append(details);
     const controls = document.createElement("div");
     controls.className = "task-controls";
+    if (task.git_feature) {
+      const git = task.git_feature;
+      card.append(textElement('p','', 'Git：' + git.state + ' · ' + git.branch +
+        (git.result && git.result.commit_id ? '\n提交：' + git.result.commit_id : '')));
+      if (['working','interrupted'].includes(state.phase)) {
+        function gitButton(label, action, remote = null) {
+          const button = textElement('button','stop-button',label);
+          button.dataset.conversation = conversation;
+          button.onclick = () => gitFeatureAction(task,action,button,remote);
+          controls.append(button);
+        }
+        if (git.needs_login) gitButton('登录GitHub','login');
+        if (!git.remote) for (const remote of git.remotes || []) gitButton('使用仓库远端 ' + remote,'remote',remote);
+        if (!git.remote && !(git.remotes || []).length) {
+          const repository = document.createElement('input');
+          repository.placeholder = 'GitHub仓库地址：https://github.com/用户/仓库';
+          repository.setAttribute('aria-label','GitHub仓库地址');
+          controls.append(repository);
+          const choose = textElement('button','stop-button','保存仓库');
+          choose.dataset.conversation = conversation;
+          choose.onclick = () => gitFeatureAction(task,'remote',choose,repository.value);
+          controls.append(choose);
+        }
+        gitButton('重试原Git操作','retry');
+      }
+    }
     function add(label, action, contentProvider) {
       const button = textElement("button", "stop-button", label);
       button.type = "button";
@@ -825,6 +877,7 @@ function renderCollaboration(tasks, conversation) {
     if (!["completed","stopped","interrupted"].includes(state.phase)) add("立即停止","stop");
     if (["working","waiting_user","blocked"].includes(state.phase)) {
       const limit = document.createElement("input");
+      limit.className = "round-limit-input";
       limit.type = "number"; limit.min = "2"; limit.max = "100"; limit.value = state.round_limit;
       if (oldLimit && String(oldLimit.value) !== String(saved.roundLimit)) limit.value = oldLimit.value;
       limit.setAttribute("aria-label", "轮次上限");
@@ -1642,7 +1695,7 @@ def run_managed_process(message_id: int, command: list[str], **kwargs) -> subpro
                     working_directory=str(execution.working_directory), workspace_version=0,
                     launch_mode=metadata.get('session_mode', 'resume' if '--session-id' in command or 'resume' in command else 'new'))
     if run['agent_id'] == 'codex':
-        snapshot['sandbox'] = command[command.index('--sandbox') + 1]
+        snapshot['sandbox'] = command[command.index('--sandbox') + 1] if '--sandbox' in command else 'profile-default'
     elif run['agent_id'] == 'grok':
         snapshot['permission_mode'] = command[command.index('--permission-mode') + 1]
         snapshot['tools_denied'] = '--deny' in command and command[command.index('--deny') + 1] == '*'
@@ -1820,16 +1873,17 @@ def run_codex(
         )
         with tempfile.TemporaryDirectory(prefix="agent-workbench-") as temporary_directory:
             answer_path = Path(temporary_directory) / "codex-answer.txt"
+            sandbox_args = ["--sandbox", "read-only"] if getattr(COLLAB_CONTEXT, "final_delivery", False) else []
             if thread_id:
                 command = [
-                    codex_command, "exec", "--sandbox", ("read-only" if getattr(COLLAB_CONTEXT, "final_delivery", False) else CODEX_SANDBOX),
+                    codex_command, "exec", *sandbox_args,
                     "--cd", str(working_directory), "resume",
                     "--json", "--skip-git-repo-check", "--output-last-message", str(answer_path),
                     thread_id, "-",
                 ]
             else:
                 command = [
-                    codex_command, "exec", "--sandbox", ("read-only" if getattr(COLLAB_CONTEXT, "final_delivery", False) else CODEX_SANDBOX),
+                    codex_command, "exec", *sandbox_args,
                     "--json", "--skip-git-repo-check",
                     "--cd", str(working_directory),
                     "--output-last-message", str(answer_path), "-",
@@ -2277,7 +2331,7 @@ class ChatHandler(BaseHTTPRequestHandler):
         return {
             "probe": CAPABILITY_PROBES.snapshot(resolve_working_directory(conversation_id)),
             "agent_configuration": [
-                {"id": "codex", "name": "Codex", "configuration": f"--sandbox {CODEX_SANDBOX}",
+                {"id": "codex", "name": "Codex", "configuration": "普通：用户权限 profile（未显式传 --sandbox）；最终交付：--sandbox read-only",
                  "cli_found": available["codex_cli_available"]},
                 {"id": "deepseek-harness", "name": "DeepSeek Harness", "configuration": f"--profile {DSH_PROFILE}; 未显式传入 sandbox 参数，其他策略未知",
                  "cli_found": available["dsh_cli_available"]},
@@ -2329,7 +2383,13 @@ class ChatHandler(BaseHTTPRequestHandler):
                 store = collaboration_service().store
                 with store.transaction() as db:
                     ids = [r[0] for r in db.execute("SELECT job_id FROM collab_bindings WHERE conversation_id=? ORDER BY rowid DESC LIMIT 20", (conversation,))]
-                self.send_json(200, {"tasks": [store.view(job_id, conversation) for job_id in ids]})
+                tasks = [store.view(job_id, conversation) for job_id in ids]
+                service = collaboration_service()
+                workflow = service.git_workflow
+                if workflow:
+                    for task in tasks:
+                        task['git_feature'] = workflow.snapshot(task['state']['job_id'])
+                self.send_json(200, {"tasks": tasks})
                 return
 
             if parsed.path in {"/", "/api/capabilities"} and not self.capability_host_allowed():
@@ -2390,6 +2450,9 @@ class ChatHandler(BaseHTTPRequestHandler):
 
     def do_POST(self) -> None:
         parsed = urlparse(self.path)
+        if parsed.path == '/api/git/action':
+            handle_git_action(self, collaboration_service(), CAPABILITY_TOKEN)
+            return
         if parsed.path == "/api/collaboration/action":
             service = collaboration_service()
             handle_action_request(self, service.store, CAPABILITY_TOKEN, service.action_changed)

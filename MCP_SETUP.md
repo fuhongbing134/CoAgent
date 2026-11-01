@@ -55,6 +55,79 @@ env = { AGENT_BRIDGE_AGENT_ID = "grok", AGENT_BRIDGE_DB = "C:/Users/FHB/Document
 
 执行结果仅写入 results 下对应 JSON，approval 文件保持原样；批准变动而已有执行记录时拒绝，交宿主核实。只注册 `create_branch(task_id,name)` 和 `commit_and_push(task_id,branch,files,message)`。调用异常由 MCP 标记失败；不要把缺批准文件的错误当作可以跳过审核。
 
+### Git 部署前必须确认（entry-2205，仅材料，未部署）
+
+本文模板不含凭据，不代表已授权修改权限或推送。操作者逐项填实后再部署：
+
+| 待确认项 | 要求 |
+|---|---|
+| database 实际路径 | 当前工作台使用的 agent_bridge.db，可能被 AGENT_BRIDGE_DB 覆盖；不新建空库冒充生产库，不编辑表来伪造任务 |
+| host.json、approvals、results 实际位置 | 使用绝对路径，均在任务仓库外，三个路径不得混用；approvals/results 目录预先创建且分离 |
+| job_id / task_id / directory | 来自工作台已安排任务；对话有显式目录设置，且解析结果与绑定 directory 相同；task_id 只能包含字母、数字、下划线、连字符，长度1–100 |
+| branch / base_commit | branch 必须以 feature/ 开头；base_commit 为该仓库真实存在的完整小写40/64位十六进制 commit ID，不是分支名或缩写 |
+| remote / executors | remote 是仓库已有远端名，不是 URL；查询和推送地址须唯一且相同。executors 只填实际获安排的 codex、deepseek-harness、grok，不必默认全开 |
+| 执行与审核身份 | 谁运行 MCP、谁保存批准、谁维护配置及结果；明确实际 OS 身份和有效访问权限，保证一个功能独占目录 |
+
+上方 JSON 是 host.json 模板，替换全部示例值后以 UTF-8 保存。任务作者由数据库读取，不在配置里添加 author 来覆盖。已有功能分支不能再次调用 create_branch；提交时 HEAD 必须对应本次审核基线，不能把旧审核移到新基线。
+
+### 三个 MCP 客户端的启动模板
+
+下面是三个服务的 **command/args 启动描述**，不是声称所有客户端都接受同一种 JSON 配置文件。按本文各客户端配置格式，分别注册一个名为 workbench-git 的 stdio 服务，保留原有 agent-bridge；若界面只接受字段，逐项填入。路径均为示例，Python 必须已安装项目依赖。
+
+```json
+{
+  "codex": {
+    "command": "C:/Users/FHB/Documents/Codex/agent-lab/step1/.venv/Scripts/python.exe",
+    "args": ["C:/Users/FHB/Documents/Codex/agent-lab/step1/git_workbench.py", "--config", "C:/host/host.json", "--executor", "codex"]
+  },
+  "deepseek-harness": {
+    "command": "C:/Users/FHB/Documents/Codex/agent-lab/step1/.venv/Scripts/python.exe",
+    "args": ["C:/Users/FHB/Documents/Codex/agent-lab/step1/git_workbench.py", "--config", "C:/host/host.json", "--executor", "deepseek-harness"]
+  },
+  "grok": {
+    "command": "C:/Users/FHB/Documents/Codex/agent-lab/step1/.venv/Scripts/python.exe",
+    "args": ["C:/Users/FHB/Documents/Codex/agent-lab/step1/git_workbench.py", "--config", "C:/host/host.json", "--executor", "grok"]
+  }
+}
+```
+
+即 `python git_workbench.py --config <host.json> --executor <身份>`，三个客户端各自固定身份。executor 是受信启动参数，不是授权凭证；工具调用参数不能改变它。重载客户端/服务后进行普通工具调用阶段的验收，不在禁止工具的最终答复阶段测试。仅启动进程或看到 CLI 路径不算 MCP 连接成功。此入口运行在 MCP 进程，不是网页主进程；网页能力检测的成功不能代替这个进程的权限。
+
+### 审批与结果目录的有效 ACL
+
+| 对象 | reviewer / 宿主 | Git execution 进程 | 编码作者的 Agent 环境 |
+|---|---|---|---|
+| host.json | 受信维护者可写 | 读取 | 不可修改 |
+| approvals 目录及其文件 | 审核后创建、修改批准 | 读取，不能写入/替换/删除批准 | 不可自行填 approved 或改审核内容 |
+| results 目录及其文件 | 可检查和维护结果 | 可创建、写入、原子替换结果文件 | 不应获准伪造 operation |
+
+在宿主上按实际 OS 账户设置并检查有效权限，检查父目录继承、组成员权限和文件所有者权限；只设置一个文件的“只读”属性不等于完成 ACL。results 需要目录写权限以支持临时文件和原子替换，不能只给已有文件写权限。数据库只读访问仍可能需要其运行模式所需的 SQLite 辅助文件访问，遇到拒绝先诊断，不为本入口更改生产库模式。
+
+**三个 Agent 名称不是三个 Windows 安全主体。** 若 reviewer、作者、execution 全部使用同一 OS 账户且相同权限，ACL 无法按 Agent 名称区分；不能宣称“作者不能批准自己”已形成 OS 隔离。需由宿主确认独立的受限运行身份或已有隔离边界，确保作者不能直接写批准/结果，execution 只能读批准。当前适配器不创建账户、不配置这种隔离；未满足时记录为部署缺口，不用 --executor 冒充隔离。
+
+非作者完成实际审核后，由宿主将前文规定的批准字段写入 approvals/<task-id>.json；content 取同一任务、同一文件清单的真实 blob/mode，不能手抄伪造。批准文件不含 operation。执行仅在 results 写回 commit_id/push_status。已有 operation 时不要为“重试”删除结果文件：先核对本地 commit 和远端；同参数重复调用只补推，不另提交。更新配置需重启服务。
+
+### 部署后的分层验收清单（当前均未执行）
+
+先用测试专用任务、隔离仓库和本地 bare 远端，避免改动现有功能目录；随后在用户明确指定的真实仓库与远端验收。下列写操作是部署后的验收步骤，本次文档任务不执行。
+
+| 编号 | 操作与应保留的证据 | 通过条件与限制 |
+|---|---|---|
+| D1 进程与权限 | 记录 MCP 实际运行账户、解释器、配置路径及任务仓库；由该 MCP 入口调用 create_branch(task_id, name)，name 等于绑定的 feature/ 分支，工作区原先干净 | 返回预期基线、分支与 HEAD，实际分支存在。只能证明该进程对该仓库的写权限；在临时仓库成功不能证明项目 .git 可写 |
+| D2 真实推送 | 在测试功能分支做小改动，经非作者审核并保存批准，调用 commit_and_push(task_id, branch, files, message)；保留返回 commit_id、push_status，核对远端同名 refs/heads/feature/... 的 commit | push_status=succeeded，远端提交与返回一致，推送前后 main 引用不变。用本地 bare 通过仅证明本地链路，不能记作 GitHub 认证验收；真实 GitHub 须另外授权并实际核对 |
+| D3 三客户端连接 | Codex、DeepSeek Harness、Grok 分别从客户端完成 stdio 初始化与 tools/list，保存服务名称、工具列表及脱敏错误；依次使用各自测试任务调用工具 | 每个服务都恰好列出 create_branch、commit_and_push，两种调用按任务范围返回。内部 FastMCP 分发测试和单客户端成功不代替三客户端实测 |
+| D4 缺审核与自审 | 在隔离测试任务分别使用缺批准文件、reviewer=author 的批准记录；调用前后读取 HEAD 和远端目标；后一个场景只能由宿主准备负例文件 | 两者均拒绝，HEAD 和远端不变。缺文件可能以 FileNotFoundError/MCP工具错误呈现，不能因此跳过审核 |
+| D5 main / force / URL | 调用 create_branch(...,"main")、对 commit_and_push 传 branch="main"；尝试额外 force 或 URL 参数；另用宿主准备的隔离配置将 remote 设成 URL | main 与 URL 配置被拒，force/URL 不是工具支持参数，不能触发额外能力；本地和远端 main 均不变。工具没有任意 git 命令入口，不为验证而真正强推 main |
+| D6 ACL | 使用 execution 实际身份检查批准目录无法新建、替换或删除批准，results 可正常原子写入；使用作者环境检查不能伪造批准/结果 | 在宿主专用测试文件上验证有效权限，不改真实批准作探针；同账户无隔离时不能填写通过 |
+
+对 D5 不预先断言 SDK 必定拒绝未知字段：若客户端/SDK 忽略了额外 force/URL 字段，只能记为“未开放该能力”，不能伪记为“参数拒绝已验证”；需核对实际工具 schema、调用返回和远端引用，确认没有强推或改目标。要验收严格的未知字段拒绝，需要另行核查当前 SDK 行为；本轮未测试也未修改参数校验代码。
+
+隔离回归可由操作者在确认环境后运行 `python -B -m unittest test_git_workbench test_git_automation -v`（临时仓库、本地 bare 远端）。它不连接三个实际客户端，也不验收生产仓库权限。本次未运行该命令。
+
+若使用真实仓库探针，先明确授权测试分支名称及基线，确认无人编辑或运行任务；不要自动 stash、reset 或丢弃改动。工具不提供删除分支：测试完成后保留证据，清理须另行确认，由操作者显式进行；不要将自动删分支混进部署脚本。合入 main 不在验收范围。
+
+每项记录“未执行/通过/失败/受阻”、时间、进程身份、代码 commit、任务绑定、操作结果及限制；不记录令牌、密码或带凭据 URL。任一真实验收未完成，就保留相应缺口。停用时移除本服务配置并重载客户端即可；保留用户提交与结果供检查，不自动回滚历史。
+
 ## 1. 安装依赖
 
 在 PowerShell 进入本目录后运行：

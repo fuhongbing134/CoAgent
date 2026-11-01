@@ -10,6 +10,7 @@ from collaboration_actions import ActionStore
 from collaboration_entry import entry_prompt, parse_entry_response
 from collaboration_invitation import terminal_invitation
 from collaboration_protocol import MISSING_PLAN, normalize_owner_plan, validate_plan
+from git_feature_workflow import FeaturePaused
 
 
 @dataclass(frozen=True)
@@ -29,7 +30,7 @@ class DispatchHalted(RuntimeError):
 
 
 class CollaborationService:
-    def __init__(self, path, invoke, cancel, *, finalize_message=None):
+    def __init__(self, path, invoke, cancel, *, finalize_message=None, git_factory=None):
         self.store = ActionStore(path, finalize_message=finalize_message)
         self.invoke = invoke
         self.cancel = cancel
@@ -37,6 +38,25 @@ class CollaborationService:
         self._locks = {}
         self._rerun = set()
         self._event_lock = threading.RLock()
+        self.git_factory = git_factory
+        self.git_workflow = None
+
+    def feature_workflow(self):
+        with self._guard:
+            if self.git_workflow is None and self.git_factory:
+                self.git_workflow = self.git_factory(self.store)
+            return self.git_workflow
+
+    def git_user_action(self, job, conversation, action, remote=None):
+        with self._guard:
+            lock = self._locks.setdefault(job,threading.Lock())
+        if not lock.acquire(False):
+            raise FeaturePaused('Feature is still executing; wait for the current step')
+        try:
+            self.feature_workflow().user_action(job,conversation,action,remote)
+        finally:
+            lock.release()
+        self.kick(job)
 
     def register_entry(self, job_id, conversation, agent_id, request, payload, raw):
         if payload["status"] == "completed" and not payload.get("plan", {}).get("tasks"):
@@ -131,7 +151,10 @@ class CollaborationService:
                 raise ValueError("missing conversation binding")
             tasks = [dict(r) for r in db.execute("SELECT * FROM collab_tasks WHERE job_id=? ORDER BY rowid", (job_id,))]
             calls = [dict(r) for r in db.execute("SELECT * FROM collab_calls WHERE job_id=? ORDER BY rowid", (job_id,))]
-        return self.store.view(job_id,binding[0]), tasks, calls
+        view = self.store.view(job_id,binding[0])
+        if self.git_workflow:
+            view['git_feature'] = self.git_workflow.snapshot(job_id)
+        return view, tasks, calls
 
     def append_plan(self, job_id, plan):
         """Owner may add follow-up tasks; existing roles/tasks remain immutable."""
@@ -172,8 +195,8 @@ class CollaborationService:
                 logging.exception('Could not persist transport failure; dispatch halted')
             raise DispatchHalted(str(error)) from error
 
-    def call(self, job_id, agent_id, role, instruction):
-        call_id = uuid.uuid4().hex
+    def call(self, job_id, agent_id, role, instruction, *, call_id=None):
+        call_id = call_id or uuid.uuid4().hex
         self.store.reserve(job_id,[(call_id,agent_id,role)])
         view,tasks,calls = self.material(job_id)
         update_count = len(view["updates"])
@@ -187,6 +210,8 @@ class CollaborationService:
             "负责人有剩余任务返回continue_work，需授权他人则request_collaboration；混合计划允许同时包含自任务和他人任务。"
             "全部任务结束才completed。负责人邀请必须末行独立@名称，任务必须在当前计划中。最终交付只汇总已有材料，不使用修改工具、不再邀请，"
             "材料不足如实披露，状态completed。\n当前角色：" + role + "\n当前任务：" + instruction +
+            "\n开发任务如需自动Git，在plan.tasks对应编码/修订任务中声明git_stage为code/revise；普通讨论不声明。"
+            "宿主管理分支审核和提交，编码Agent不要自行执行Git写操作。"
             "\n完整材料：" + json.dumps(dict(view=view,tasks=tasks,calls=calls),ensure_ascii=False))
         invocation = self._invoke(job_id,agent_id,role,prompt,call_id)
         state,text = invocation
@@ -239,6 +264,14 @@ class CollaborationService:
             pending = [t for t in tasks if t["state"] == "pending"]
             done = {t["task_id"] for t in tasks if t["state"] == "completed"}
             ready = [t for t in pending if set(json.loads(t["deps"])) <= done]
+            definitions = {t['task_id']:t for t in plan['tasks']}
+            for task in tasks:
+                task.update({k:v for k,v in definitions.get(task['task_id'],{}).items() if k == 'git_stage'})
+            if self.git_workflow and self.git_workflow.release_if_done(job_id,tasks):
+                with self.store.transaction() as db:
+                    waiting = [r[0] for r in db.execute("SELECT job_id FROM git_features WHERE job_id!=?",(job_id,))]
+                for waiting_job in waiting:
+                    self.kick(waiting_job)
             # Latest owner invitation authorizes only those collaborator tasks.
             with self.store.transaction() as db:
                 auth = db.execute("SELECT targets FROM collab_authorizations WHERE job_id=?", (job_id,)).fetchone()
@@ -248,12 +281,42 @@ class CollaborationService:
                 decision_used = False
                 task = ready[0]  # conservative serialization in shared workspace
                 try:
-                    result = self.call(job_id,task["agent_id"],"collaborator",task["instruction"])
+                    workflow = self.feature_workflow() if task.get('git_stage') else None
+                except RuntimeError:
+                    with self.store.transaction() as db:
+                        db.execute("UPDATE collab_lifecycle SET phase='blocked',reason=? WHERE job_id=? AND phase='working'",
+                                   ('Git host unavailable; check the workbench Git installation and permissions',job_id))
+                    return
+                if task.get('git_stage') and workflow is None:
+                    raise DispatchHalted('Git host integration unavailable')
+                try:
+                    mode = workflow.before_task(job_id,task,self) if workflow else 'run'
+                    if mode == 'queued':
+                        return
+                    result = ({'status':'completed'} if mode == 'recover' else
+                              self.call(job_id,task["agent_id"],"collaborator",task["instruction"]))
+                    if workflow and result and result['status'] == 'completed':
+                        if not workflow.finish_task(self,job_id,task):
+                            result = None
                 except ValueError as error:
                     if "budget" not in str(error):
                         raise
                     self.store.prepare_final(job_id,"额度不足，依据已有材料收尾")
                     continue
+                except FeaturePaused as error:
+                    workflow.reason(job_id,str(error))
+                    if error.user_action or not self.control(job_id):
+                        return
+                    # Failed Git preconditions go to the owner/Agent for
+                    # diagnosis, rather than handing internal state to the user.
+                    result = None
+                except RuntimeError as error:
+                    if not workflow:
+                        raise
+                    workflow.reason(job_id, str(error))
+                    # Keep occupancy and the original operation. The owner can
+                    # schedule a revision/recovery; do not silently repeat code.
+                    result = None
                 if not self.control(job_id):
                     return
                 with self.store.transaction() as db:

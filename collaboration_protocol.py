@@ -30,7 +30,9 @@ def _validate_plan_structure(plan, registry, allow_empty=False):
         raise ValueError("tasks must be a nonempty list")
     graph = {}
     for task in tasks:
-        _keys(task, {"task_id", "agent_id", "instruction"}, {"depends_on"})
+        _keys(task, {"task_id", "agent_id", "instruction"}, {"depends_on", "git_stage"})
+        if "git_stage" in task and (not isinstance(task["git_stage"], str) or task["git_stage"] not in {"code", "revise"}):
+            raise ValueError("git_stage must be code or revise")
         _text(task["task_id"])
         _text(task["instruction"])
         registry.require(task["agent_id"])
@@ -98,7 +100,14 @@ def validate_payload(payload, *, registry=None, require_plan=False, invitation_i
     registry = registry or default_registry()
     if role not in {"entry", "owner", "collaborator", "final"} or phase not in {"collaboration", "final_delivery"}:
         raise ValueError("invalid invocation context")
-    _keys(payload, {"protocol_version", "status", "handoff", "questions"}, {"plan", "blocked_reason"})
+    _keys(payload, {"protocol_version", "status", "handoff", "questions"}, {"plan", "blocked_reason", "git_review"})
+    if "git_review" in payload:
+        review = payload["git_review"]
+        _keys(review, {"review_id", "approved", "issues"})
+        _text(review["review_id"])
+        _text(review["issues"])
+        if type(review["approved"]) is not bool or role != "collaborator" or payload["status"] != "completed":
+            raise ValueError("git_review requires a completed collaborator result")
     if type(payload["protocol_version"]) is not int or payload["protocol_version"] != 1:
         raise ValueError("unsupported protocol version")
     status = payload["status"]
