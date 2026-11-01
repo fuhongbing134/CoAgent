@@ -80,17 +80,17 @@ def main(argv=None):
             data = get_json(base, endpoint)
             if endpoint == '/api/agents':
                 ids = {a['agent_id'] for a in data['agents']}
-                found = {'codex': data.get('codex_cli_available'), 'deepseek-harness': data.get('dsh_cli_available')}
-                ok = {'codex', 'deepseek-harness'} <= ids and all(v is True for v in found.values())
+                found = {'codex': data.get('codex_cli_available'), 'deepseek-harness': data.get('dsh_cli_available'), 'grok': data.get('grok_cli_available')}
+                ok = {'codex', 'deepseek-harness', 'grok'} <= ids and all(v is True for v in found.values())
             else:
                 found = {a['id']: a.get('cli_found') for a in data['agent_configuration']}
-                ok = all(found.get(a) is True for a in ('codex','deepseek-harness'))
+                ok = all(found.get(a) is True for a in ('codex','deepseek-harness','grok'))
             check(endpoint, 'PASS' if ok else 'FAIL', found)
         except Exception as error:
             check(endpoint, 'FAIL', {'error_type': type(error).__name__, 'message': str(error)[:300]})
     try:
         import web_chat
-        for name, resolver in [('codex', web_chat.resolve_codex_command), ('deepseek-harness', web_chat.resolve_dsh_command)]:
+        for name, resolver in [('codex', web_chat.resolve_codex_command), ('deepseek-harness', web_chat.resolve_dsh_command), ('grok', web_chat.resolve_grok_command)]:
             try:
                 executable = resolver()
                 check('local_cli_' + name, 'PASS' if executable else 'FAIL', executable)

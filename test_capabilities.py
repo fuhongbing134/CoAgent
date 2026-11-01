@@ -134,19 +134,43 @@ class HttpTests(unittest.TestCase):
                 self.assertEqual(status, 503)
                 self.assertIn("error", json.loads(data))
 
+    def test_explicit_broadcast_cannot_silently_lose_grok(self):
+        headers = {'Content-Type': 'application/json',
+                   'Origin': f'http://127.0.0.1:{self.server.server_port}',
+                   'X-Capability-Token': web_chat.CAPABILITY_TOKEN}
+        targets = ['codex', 'grok']
+        with patch.object(web_chat, 'resolve_message_recipients', return_value=(targets, dict.fromkeys(targets, 'hello'))), \
+             patch.object(web_chat, 'resolve_grok_command', return_value=None), \
+             patch.object(web_chat, 'resolve_codex_command', return_value=None), \
+             patch.object(web_chat, 'connect_workbench') as db:
+            for explicit in (True, False):
+                body = {'content': '@all hello'}
+                if explicit:
+                    body['recipients'] = targets
+                status, data = self.request('POST', '/api/messages', headers, json.dumps(body))
+                self.assertEqual(status, 503)
+                error = json.loads(data)['error']
+                self.assertIn('Grok' if explicit else 'Codex', error)
+                if explicit:
+                    self.assertIn('刷新', error)
+            db.assert_not_called()
+
     def test_cli_discovery_is_cached_until_ttl(self):
         with patch.object(web_chat, "resolve_codex_command", return_value="codex") as codex, \
                 patch.object(web_chat, "resolve_dsh_command", return_value=None) as dsh, \
+                patch.object(web_chat, "resolve_grok_command", return_value=None) as grok, \
                 patch.object(web_chat.time, "monotonic", return_value=10) as clock:
             self.assertTrue(web_chat.cli_availability()["codex_cli_available"])
             clock.return_value = 10 + web_chat.CLI_CACHE_TTL_SECONDS - 1
             web_chat.cli_availability()
             codex.assert_called_once()
             dsh.assert_called_once()
+            grok.assert_called_once()
             clock.return_value += 1
             web_chat.cli_availability()
             self.assertEqual(codex.call_count, 2)
             self.assertEqual(dsh.call_count, 2)
+            self.assertEqual(grok.call_count, 2)
 
     def test_probe_requires_origin_token_json_and_valid_payload(self):
         origin = f"http://127.0.0.1:{self.server.server_port}"

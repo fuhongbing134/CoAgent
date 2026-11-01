@@ -1,5 +1,26 @@
 # Codex 与 DeepSeek Harness 消息桥
 
+## Grok Build 接入补充（2026-11-01）
+
+工作台调用 Grok CLI 与 MCP 消息桥是两条链路；CLI存在不证明桥接已登记。
+Grok 启动命令可用 `GROK_CLI` 指定，否则检查PATH和用户目录 `.grok/bin/grok.exe`。
+普通调用使用auto，接受非交互分类器拒绝工具、不等待人工批准且不保证工具执行；普通与最终均禁子Agent。最终交付dontAsk并拒绝全部工具，不宣称Windows操作系统级沙箱。
+
+按[官方MCP说明](https://docs.x.ai/build/features/mcp-servers)，可在用户自己的 `~/.grok/config.toml` 中手动追加（不要覆盖已有配置）：
+
+```toml
+[mcp_servers.agent_bridge]
+command = "C:/Users/FHB/Documents/Codex/agent-lab/step1/.venv/Scripts/python.exe"
+args = ["C:/Users/FHB/Documents/Codex/agent-lab/step1/agent_bridge.py"]
+env = { AGENT_BRIDGE_AGENT_ID = "grok", AGENT_BRIDGE_DB = "C:/Users/FHB/Documents/Codex/agent-lab/step1/agent_bridge.db" }
+```
+
+确认本机路径后由用户配置；本轮不写用户配置，不查询真实登记状态。
+重新加载后，在普通协作阶段调用register_agent，核对返回agent_id为grok，再测试两端收发。
+最终交付阶段拒绝工具，不应依赖该阶段进行MCP注册。
+隔离测试证明通用桥接支持grok身份，不代替真实MCP连接验收。
+具体修正及验证范围见[适配设计](docs/GROK_ADAPTATION_DESIGN.md)。
+
 这个本地 MCP 服务让多个 Agent 通过同一份 SQLite 消息记录互相登记、发消息和读取对话。它只共享通过消息桥发送的内容，不会读取双方完整的私有聊天记录。
 
 ## 1. 安装依赖
