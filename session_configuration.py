@@ -33,7 +33,7 @@ class ResolvedSessionConfiguration:
                  effective_config, evidence_reference, profile=None,
                  profile_isolates_storage=False, patch_path=None, environment=(),
                  tools_disabled=False):
-        if not evidence_reference or adapter_id not in {'codex', 'dsh'}:
+        if not evidence_reference or adapter_id not in {'codex', 'dsh', 'grok'}:
             raise ValueError('Backend storage evidence is required')
         # Explicit whitelist: credentials and raw configuration cannot enter snapshots.
         allowed = {'model', 'provider_id', 'endpoint_identity', 'recovery_format', 'sandbox'}

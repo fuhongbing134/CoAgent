@@ -248,7 +248,8 @@ class ExecutionTracker:
                         candidates.append(candidate)
             rows = db.execute('SELECT agent_id,session_id,updated_at FROM workbench_agent_sessions WHERE conversation_id=? AND agent_id IN (?,?)',
                               (run['conversation_id'], run['agent_id'],
-                               'deepseek-harness-headless' if run['agent_id']=='deepseek-harness' else run['agent_id']))
+                               'deepseek-harness-headless' if run['agent_id']=='deepseek-harness'
+                               else 'grok-headless' if run['agent_id']=='grok' else run['agent_id']))
             for key, sid, stamp in rows:
                 candidate = dict(source_table='workbench_agent_sessions', original_agent_key=key,
                                  conversation_id=run['conversation_id'], session_id=sid, updated_at=stamp)
@@ -331,12 +332,16 @@ class ExecutionTracker:
         fixed legacy IDs only; they do not establish historical writer identity.
         """
         adapter_id = canonical_adapter(adapter_id)
-        if adapter_id not in {'codex', 'dsh'}:
+        if adapter_id not in {'codex', 'dsh', 'grok'}:
             raise ValueError('Unsupported legacy session adapter')
         if adapter_id == 'dsh':
             legacy_key = legacy_key or 'deepseek-harness-headless'
             if legacy_key not in {'deepseek-harness', 'deepseek-harness-headless', 'dsh'}:
                 raise ValueError('Invalid DSH legacy session key')
+        elif adapter_id == 'grok':
+            legacy_key = legacy_key or 'grok-headless'
+            if legacy_key not in {'grok', 'grok-headless'}:
+                raise ValueError('Invalid Grok legacy session key')
         elif legacy_key not in {None, 'codex'}:
             raise ValueError('Invalid Codex legacy session key')
         with self._transaction() as db:

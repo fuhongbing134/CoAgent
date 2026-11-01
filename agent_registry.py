@@ -19,7 +19,7 @@ class Agent:
 
 
 class AgentRegistry:
-    def __init__(self, records, *, adapters=("codex", "dsh")):
+    def __init__(self, records, *, adapters=("codex", "dsh", "grok")):
         self._agents = {}
         self._names = {}
         for record in records:
@@ -81,6 +81,7 @@ class AgentRegistry:
 DEFAULT_AGENTS = [
     dict(agent_id="codex", name="Codex", aliases=["openai"], adapter="codex", enabled=True),
     dict(agent_id="deepseek-harness", name="DeepSeek Harness", aliases=["deepseek", "deepseekharness"], adapter="dsh", enabled=True),
+    dict(agent_id="grok", name="Grok", aliases=["grok-build", "xai"], adapter="grok", enabled=True),
 ]
 
 

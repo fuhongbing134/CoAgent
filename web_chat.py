@@ -58,6 +58,7 @@ def cli_availability() -> dict:
             CLI_AVAILABILITY_CACHE = (now, {
                 "codex_cli_available": resolve_codex_command() is not None,
                 "dsh_cli_available": resolve_dsh_command() is not None,
+                "grok_cli_available": resolve_grok_command() is not None,
             })
         return dict(CLI_AVAILABILITY_CACHE[1])
 
@@ -66,8 +67,10 @@ DB_PATH = Path(os.environ.get("AGENT_BRIDGE_DB", PROJECT_DIR / "agent_bridge.db"
 DSH_AUTH_PATCH = Path(os.environ.get("DSH_HEADLESS_PATCH", PROJECT_DIR / "dsh-headless-auth.patch.yml")).expanduser()
 MAX_MESSAGES = 1000
 MAX_MESSAGE_LENGTH = 20_000
-AGENT_IDS = ("codex", "deepseek-harness")
+AGENT_IDS = ("codex", "deepseek-harness", "grok")
 DSH_SESSION_KEY = "deepseek-harness-headless"
+GROK_SESSION_KEY = "grok-headless"
+AGENT_LABELS = {"codex": "Codex", "deepseek-harness": "DeepSeek Harness", "grok": "Grok"}
 
 
 def _env_positive_int(name: str, default: int) -> int:
@@ -91,12 +94,14 @@ AGENT_CONTEXT_MAX_MESSAGES = _env_positive_int("AGENT_CONTEXT_MAX_MESSAGES", 30)
 AGENT_CONTEXT_MAX_MESSAGE_CHARS = _env_positive_int("AGENT_CONTEXT_MAX_MESSAGE_CHARS", 3000)
 AGENT_CODEX_TIMEOUT_SECONDS = _env_positive_int("AGENT_CODEX_TIMEOUT_SECONDS", 1200)
 AGENT_DEEPSEEK_TIMEOUT_SECONDS = _env_positive_int("AGENT_DEEPSEEK_TIMEOUT_SECONDS", 1200)
+AGENT_GROK_TIMEOUT_SECONDS = _env_positive_int("AGENT_GROK_TIMEOUT_SECONDS", 1200)
 MENTION_PATTERNS = {
     "codex": re.compile(r"(?<![A-Za-z0-9_@\\])@(?:codex|openai)(?![A-Za-z0-9_]|\.[A-Za-z])", re.IGNORECASE),
     "deepseek-harness": re.compile(
         r"(?<![A-Za-z0-9_@\\])@(?:deepseek\s+harness|deepseekharness|deepseek)(?![A-Za-z0-9_]|\.[A-Za-z])",
         re.IGNORECASE,
     ),
+    "grok": re.compile(r"(?<![A-Za-z0-9_@\\])@(?:grok-build|grok|xai)(?![A-Za-z0-9_]|\.[A-Za-z])", re.IGNORECASE),
 }
 ALL_AGENTS_MENTION = re.compile(
     r"(?<![A-Za-z0-9_@\\])@(?:all|everyone|所有|全部)(?![A-Za-z0-9_]|\.[A-Za-z])",
@@ -189,7 +194,7 @@ def invoke_collaboration(job_id, agent_id, role, prompt, *, call_id, entry_mode=
             else:
                 begin_execution(message_id, source_kind='collaboration', job_id=job_id, call_id=call_id)
                 COLLAB_CONTEXT.final_delivery = role == 'final'
-                worker = run_codex if agent_id == 'codex' else run_deepseek_harness
+                worker = agent_worker(agent_id)
                 reply = worker(conversation,prompt,message_id,message_id)
                 if not isinstance(reply, WorkerResult):
                     raise RuntimeError('Worker returned no structured result')
@@ -309,6 +314,7 @@ PAGE = r"""<!doctype html>
     .brand-sub { color:var(--muted);font-size:11px;margin-top:2px; }
     .avatar { flex:none;width:32px;height:32px;border-radius:10px;display:grid;place-items:center;font-weight:750;color:#12151b;background:#a8c7fa; }
     .avatar.deepseek { background:#b8ead5; }
+    .avatar.grok { background:#d9c2f5; }
     .side-note { color:#788292;font-size:11px;line-height:1.6;padding:14px 8px; }
     main { width:100%;height:100vh;height:100dvh;min-width:0;min-height:0;overflow:hidden;display:grid;grid-template-rows:auto minmax(0,1fr) auto; }
     .topbar { min-height:68px;position:relative;z-index:2;border-bottom:1px solid var(--line);display:flex;align-items:center;justify-content:space-between;padding:12px clamp(18px,4vw,48px);gap:16px;background:rgba(16,18,22,.88);backdrop-filter:blur(12px); }
@@ -446,6 +452,7 @@ const mentionSuggestionsNode = document.getElementById("mention-suggestions");
 const mentionOptions = [
   {token:"@Codex", label:"Codex", description:"只由 Codex 回复", prefixes:["codex", "openai"]},
   {token:"@DeepSeek Harness", label:"DeepSeek Harness", description:"只由 DeepSeek Harness 回复", prefixes:["deepseek harness", "deepseekharness", "deepseek"]},
+  {token:"@Grok", label:"Grok", description:"只由 Grok 回复", prefixes:["grok", "grok-build", "xai"]},
   {token:"@all", label:"所有 Agent", description:"同时发送给所有 Agent", prefixes:["all", "everyone", "所有", "全部"]}
 ];
 let selectedConversation = "default";
@@ -455,7 +462,7 @@ let refreshPromise = null;
 let initialized = false;
 let previousMessageIds = "";
 let pendingAgents = new Set();
-let availableAgents = {codex:false, "deepseek-harness":false};
+let availableAgents = {codex:false, "deepseek-harness":false, grok:false};
 let submitting = false;
 let stopAllSubmitting = false;
 let activeMentionIndex = 0;
@@ -487,10 +494,11 @@ async function getJson(path) {
   } finally { clearTimeout(timeout); }
 }
 
-function agentAvailability(agents, codexAvailable, dshAvailable) {
+function agentAvailability(agents, codexAvailable, dshAvailable, grokAvailable) {
   return {
     codex: Boolean(codexAvailable),
-    "deepseek-harness": Boolean(dshAvailable && agents.some(agent => agent.agent_id === "deepseek-harness"))
+    "deepseek-harness": Boolean(dshAvailable && agents.some(agent => agent.agent_id === "deepseek-harness")),
+    grok: Boolean(grokAvailable)
   };
 }
 
@@ -516,17 +524,19 @@ function renderConversations(conversations) {
   conversationNode.value = selectedConversation;
 }
 
-function renderRecipients(agents, codexAvailable, dshAvailable) {
-  availableAgents = agentAvailability(agents, codexAvailable, dshAvailable);
+function renderRecipients(agents, codexAvailable, dshAvailable, grokAvailable) {
+  availableAgents = agentAvailability(agents, codexAvailable, dshAvailable, grokAvailable);
   renderAgents(availableAgents);
 }
 
 function recipientsForText(content) {
   const masked = content.replace(/```[\s\S]*?(?:```|$)|`[^`\r\n]*`|https?:\/\/\S+/g, m => " ".repeat(m.length));
-  if (/(^|[^A-Za-z0-9_@\\])@(?:all|everyone|\u6240\u6709|\u5168\u90e8)(?![A-Za-z0-9_])/i.test(masked)) return ["codex", "deepseek-harness"];
-  const pattern = /(^|[^A-Za-z0-9_@\\])@(?:(codex|openai)|(deepseek\s+harness|deepseekharness|deepseek))(?![A-Za-z0-9_]|\.[A-Za-z])/ig;
+  // Grok joins broadcasts only while its CLI is available, so a missing Grok never blocks Codex/DSH.
+  const everyone = availableAgents.grok ? ["codex", "deepseek-harness", "grok"] : ["codex", "deepseek-harness"];
+  if (/(^|[^A-Za-z0-9_@\\])@(?:all|everyone|\u6240\u6709|\u5168\u90e8)(?![A-Za-z0-9_])/i.test(masked)) return everyone;
+  const pattern = /(^|[^A-Za-z0-9_@\\])@(?:(codex|openai)|(deepseek\s+harness|deepseekharness|deepseek)|(grok-build|grok|xai))(?![A-Za-z0-9_]|\.[A-Za-z])/ig;
   const match = pattern.exec(masked);
-  return match ? [match[2] ? "codex" : "deepseek-harness"] : ["codex", "deepseek-harness"];
+  return match ? [match[2] ? "codex" : match[3] ? "deepseek-harness" : "grok"] : everyone;
 }
 
 function isInsideCode(text, position) {
@@ -617,7 +627,7 @@ function completeMention(index) {
 }
 
 function agentLabel(agentId) {
-  return agentId === "deepseek-harness" ? "DeepSeek Harness" : "Codex";
+  return agentId === "deepseek-harness" ? "DeepSeek Harness" : agentId === "grok" ? "Grok" : "Codex";
 }
 
 function updateComposer() {
@@ -625,7 +635,7 @@ function updateComposer() {
   const recipients = recipientsForText(inputNode.value);
   const busy = recipients.filter(function(agentId) { return pendingAgents.has(agentId); });
   const unavailable = recipients.filter(function(agentId) { return !availableAgents[agentId]; });
-  const recipientLabel = recipients.length === 2
+  const recipientLabel = recipients.length >= 2
     ? "所有 Agent"
     : recipients.map(agentLabel).join(" 和 ");
   inputNode.disabled = submitting;
@@ -667,7 +677,7 @@ function renderMessages(messages) {
   for (const message of messages) {
     const isUser = message.sender_id === "user";
     const row = textElement("article", "message" + (isUser ? " user" : ""));
-    const avatar = textElement("div", "avatar" + (String(message.sender_id).includes("deepseek") ? " deepseek" : ""), String(message.sender_name || message.sender_id || "?").slice(0,1));
+    const avatar = textElement("div", "avatar" + (String(message.sender_id).includes("deepseek") ? " deepseek" : message.sender_id === "grok" ? " grok" : ""), String(message.sender_name || message.sender_id || "?").slice(0,1));
     const bubble = textElement("div", "bubble");
     const meta = textElement("div", "meta");
     meta.append(textElement("span", "", (message.sender_name || message.sender_id) + " → " + (message.recipient_name || message.recipient_id)));
@@ -856,7 +866,7 @@ async function refreshRound(version, conversation) {
     ]);
     if (version !== refreshVersion || conversation !== selectedConversation) return;
     renderCollaboration(results[3].tasks || [], conversation);
-    renderRecipients(results[0].agents, results[0].codex_cli_available, results[0].dsh_cli_available);
+    renderRecipients(results[0].agents, results[0].codex_cli_available, results[0].dsh_cli_available, results[0].grok_cli_available);
     renderConversations(results[1].conversations);
     if (conversation !== selectedConversation) {
       refreshVersion++;
@@ -1263,6 +1273,21 @@ def resolve_dsh_command() -> str | None:
     return None
 
 
+def resolve_grok_command() -> str | None:
+    configured = os.environ.get("GROK_CLI", "").strip().strip('"')
+    if configured:
+        located = shutil.which(configured)
+        if located:
+            return located
+        candidate = Path(configured).expanduser()
+        return str(candidate) if candidate.is_file() else None
+    located = shutil.which("grok")
+    if located:
+        return located
+    candidate = Path(os.environ.get("USERPROFILE", str(Path.home()))) / ".grok" / "bin" / ("grok.exe" if os.name == "nt" else "grok")
+    return str(candidate) if candidate.is_file() else None
+
+
 def resolve_codex_command() -> str | None:
     configured = os.environ.get("CODEX_CLI", "").strip().strip('"')
     if configured:
@@ -1575,13 +1600,15 @@ def prepare_execution_session(message_id, agent_id, executable, environment):
     resolver = SESSION_CONFIGURATION_RESOLVER
     if resolver is None:
         execution.session_configuration = None
+        if agent_id == 'grok':
+            return execution.select_legacy_session('grok', GROK_SESSION_KEY)
         return execution.select_legacy_session('codex' if agent_id == 'codex' else 'dsh',
                                                None if agent_id == 'codex' else DSH_SESSION_KEY)
     try:
         config = resolver(agent_id, execution.working_directory, executable, environment)
         if config is None or not config.evidence_reference:
             raise RuntimeError('Session namespace evidence missing; refusing production cutover')
-        expected_adapter = 'codex' if agent_id == 'codex' else 'dsh'
+        expected_adapter = 'codex' if agent_id == 'codex' else 'grok' if agent_id == 'grok' else 'dsh'
         if config.identity.adapter_id != expected_adapter:
             raise RuntimeError('Session adapter mismatch')
     except Exception as error:
@@ -1614,6 +1641,8 @@ def run_managed_process(message_id: int, command: list[str], **kwargs) -> subpro
                     launch_mode=metadata.get('session_mode', 'resume' if '--session-id' in command or 'resume' in command else 'new'))
     if run['agent_id'] == 'codex':
         snapshot['sandbox'] = command[command.index('--sandbox') + 1]
+    elif run['agent_id'] == 'grok':
+        snapshot['permission_mode'] = 'always-approve' if '--always-approve' in command else 'default'
     else:
         snapshot['profile'] = command[command.index('--profile') + 1]
         patch = command[command.index('--patch') + 1]
@@ -2001,6 +2030,124 @@ def run_deepseek_harness(
             return worker_reply(assistant_message_id, "调用 DeepSeek Harness 失败：" + message[:4000], "failed")
 
 
+def build_grok_command(grok_command: str, prompt_path: Path, working_directory: Path,
+                       session_id: str | None, final_delivery: bool) -> list[str]:
+    """Headless Grok Build launch; final delivery keeps the default (read-only) mode."""
+    command = [grok_command, "--prompt-file", str(prompt_path),
+               "--output-format", "streaming-json", "--cwd", str(working_directory)]
+    if session_id:
+        command += ["--resume", session_id]
+    if not final_delivery:
+        command.append("--always-approve")
+    return command
+
+
+def parse_grok_output(stdout: str) -> tuple[str, str | None, list[str], list[str]]:
+    """Return (answer, session_id, error_messages, permission_notes) from NDJSON stdout."""
+    texts, errors, notes = [], [], []
+    session_id = None
+    for line in stdout.splitlines():
+        stripped = line.strip()
+        if not stripped:
+            continue
+        try:
+            event = json.loads(stripped)
+        except json.JSONDecodeError:
+            if stripped.lower().startswith("permission required:"):
+                notes.append(stripped)
+            continue
+        if not isinstance(event, dict):
+            continue
+        kind = event.get("type")
+        if kind == "text" and isinstance(event.get("data"), str):
+            texts.append(event["data"])
+        elif kind == "end" and isinstance(event.get("sessionId"), str) and event["sessionId"].strip():
+            session_id = event["sessionId"]
+        elif kind == "error":
+            errors.append(str(event.get("message") or "Grok CLI error"))
+    return "".join(texts).strip(), session_id, errors, notes
+
+
+@structured_worker
+def run_grok(
+    conversation_id: str,
+    prompt: str,
+    assistant_message_id: int,
+    user_message_id: int,
+) -> WorkerResult:
+    try:
+        touch_agent_last_seen("grok")
+        working_directory = active_run(assistant_message_id)['execution'].working_directory
+        grok_command = resolve_grok_command()
+        if not grok_command:
+            raise RuntimeError(
+                "找不到 Grok CLI。请安装 Grok Build（grok）并登录；也可设置 GROK_CLI 为 grok.exe 的完整路径。"
+            )
+        agent_prompt = build_agent_prompt(
+            conversation_id, "grok", user_message_id, prompt, working_directory
+        )
+        environment = os.environ.copy()
+        session_id = prepare_execution_session(assistant_message_id, 'grok', grok_command, environment)
+        if session_id and not all(char.isalnum() or char in '._-' for char in session_id):
+            raise RuntimeError('Invalid Grok resume ID')
+        final_delivery = getattr(COLLAB_CONTEXT, "final_delivery", False)
+        with tempfile.TemporaryDirectory(prefix="agent-workbench-") as temporary_directory:
+            prompt_path = Path(temporary_directory) / "grok-prompt.txt"
+            prompt_path.write_bytes(agent_prompt.encode("utf-8"))
+            command = build_grok_command(grok_command, prompt_path, working_directory,
+                                         session_id, final_delivery)
+            result = run_managed_process(
+                assistant_message_id,
+                command,
+                cwd=working_directory,
+                env=environment,
+                diagnostic_metadata={
+                    "agent_id": "grok",
+                    "transport": "prompt-file",
+                    "session_mode": "resume" if session_id else "new",
+                },
+                text=True,
+                encoding="utf-8",
+                errors="replace",
+                timeout=AGENT_GROK_TIMEOUT_SECONDS,
+            )
+        answer, new_session_id, error_messages, permission_notes = parse_grok_output(result.stdout)
+        if not session_id and new_session_id:
+            if active_run(assistant_message_id)['execution'].session_claim is None:
+                save_agent_session_id(conversation_id, GROK_SESSION_KEY, new_session_id)
+        if result.returncode != 0 or error_messages:
+            diagnostic = (result.stderr or "").strip()
+            diagnostic = next(iter(error_messages), "") or diagnostic or "Grok CLI 执行失败"
+            raise RuntimeError(diagnostic[:4000])
+        if not answer:
+            raise RuntimeError("Grok 已退出，但没有返回可显示的最终回复。")
+        if permission_notes:
+            answer += ("\n\n[工作台提示] 以下操作因无界面运行无法审批而未执行：\n"
+                       + "\n".join(note[:500] for note in permission_notes[:10]))
+        return worker_reply(assistant_message_id, answer, "completed")
+    except AgentRunCancelled:
+        return worker_reply(assistant_message_id, "已停止。", "cancelled")
+    except subprocess.TimeoutExpired:
+        if is_run_cancelled(assistant_message_id):
+            return worker_reply(assistant_message_id, "已停止。", "cancelled")
+        else:
+            return worker_reply(assistant_message_id, f"Grok 执行超时（{AGENT_GROK_TIMEOUT_SECONDS} 秒）。可能已有文件修改，未自动回退。", "failed")
+    except Exception as error:
+        if is_run_cancelled(assistant_message_id):
+            return worker_reply(assistant_message_id, "已停止。", "cancelled")
+        else:
+            message = format_execution_error(error)
+            return worker_reply(assistant_message_id, "调用 Grok 失败：" + message[:4000], "failed")
+
+
+def agent_worker(agent_id: str):
+    if agent_id == "codex":
+        return run_codex
+    if agent_id == "grok":
+        return run_grok
+    return run_deepseek_harness
+
+
 def run_agent_task(
     agent_id: str,
     conversation_id: str,
@@ -2037,7 +2184,7 @@ def run_agent_task(
             begin_execution(assistant_message_id, source_kind='collaboration' if collaboration else 'workbench',
                             job_id=f'entry-{assistant_message_id}' if collaboration else None,
                             call_id='entry' if collaboration else None)
-        worker = run_codex if agent_id == "codex" else run_deepseek_harness
+        worker = agent_worker(agent_id)
         reply = worker(conversation_id, entry_prompt(prompt) if collaboration else prompt,
                assistant_message_id, user_message_id)
         if not isinstance(reply, WorkerResult):
@@ -2152,6 +2299,8 @@ class ChatHandler(BaseHTTPRequestHandler):
                  "cli_found": available["codex_cli_available"]},
                 {"id": "deepseek-harness", "name": "DeepSeek Harness", "configuration": f"--profile {DSH_PROFILE}; 未显式传入 sandbox 参数，其他策略未知",
                  "cli_found": available["dsh_cli_available"]},
+                {"id": "grok", "name": "Grok", "configuration": "--always-approve（最终交付阶段为默认只读审批模式）",
+                 "cli_found": available["grok_cli_available"]},
             ],
         }
 
@@ -2369,6 +2518,16 @@ class ChatHandler(BaseHTTPRequestHandler):
             self.send_json(400, {"error": "请在 Agent 名称后输入要发送的消息"})
             return
 
+        if "grok" in recipients and not resolve_grok_command():
+            if len(recipients) == 1:
+                self.send_json(503, {
+                    "error": "找不到 Grok CLI。请安装 Grok Build（grok）并登录；也可设置 GROK_CLI 为 grok.exe 的完整路径。"
+                })
+                return
+            # A missing Grok never blocks a broadcast to the other Agents.
+            recipients = [agent_id for agent_id in recipients if agent_id != "grok"]
+            agent_prompts.pop("grok", None)
+
         if "codex" in recipients and not resolve_codex_command():
             self.send_json(503, {
                 "error": "找不到 Codex CLI。请确认已安装 Codex；也可以设置 CODEX_CLI 为 codex.exe 的完整路径。"
@@ -2410,14 +2569,14 @@ class ChatHandler(BaseHTTPRequestHandler):
             ).fetchone()
             if pending:
                 connection.rollback()
-                label = "Codex" if pending[0] == "codex" else "DeepSeek Harness"
+                label = AGENT_LABELS.get(pending[0], "DeepSeek Harness")
                 self.send_json(409, {
                     "error": label + " 正在处理这段对话。请等待它完成，或只 @ 另一个 Agent。"
                 })
                 return
             if active_run:
                 connection.rollback()
-                label = "Codex" if active_run["agent_id"] == "codex" else "DeepSeek Harness"
+                label = AGENT_LABELS.get(active_run["agent_id"], "DeepSeek Harness")
                 self.send_json(409, {"error": label + " 的上一条任务尚未完全结束，请稍后重试。"})
                 return
 
