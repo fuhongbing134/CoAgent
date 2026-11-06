@@ -123,4 +123,16 @@
 - **验收标准**：从真实解析入口经服务到事务接收覆盖 waiting_user/blocked 空计划与省略计划等价，旧任务保留且不重执行；篡改角色仍拒绝，缺 questions/blocked_reason 仍拒绝；completed 兼容及其他角色、状态和 final_delivery 边界不退化。不自动重放或改写历史失败 job。
 - **关联**：[调度计划接收设计](docs/COLLABORATION_DISPATCH_DESIGN.md)、`collaboration_protocol.py` 的 `validate_payload`/`normalize_owner_plan`、`collaboration_service.py` 的 `call`（先解析再归一化）、`collaboration_lifecycle.py` 的事务接收、`test_issue8.py`；与失败可见性验收分开跟踪。
 
+### 9. owner 协作协议 status 与邀请不一致（混合计划误用 continue_work 夹带 @邀请）
+
+- **需求**：修复 DSH owner 在混合计划（plan 同时含自任务与他人任务）时，status 误用 `continue_work` 却夹带末行 `@邀请`；按协议，含他人任务需授权他人时应为 `request_collaboration` + 末行 `@名称`，`continue_work` 仅用于自任务且不写邀请行。此前 DSH owner 已多次出现协作协议 JSON 问题（duplicate `task_id`、多余 `agent_id_note` 字段等），应统一记录并修复/预防。
+- **状态**：已确认但暂缓（待修复，未实施）
+- **暂缓影响**：正确性问题（调度器无法按 status 正确分发授权/邀请，任务卡住或角色边界被破坏）
+- **优先级**：高
+- **价值**：确保 owner 协作协议回复可被调度器正确解析分发。
+- **当前替代方式**：owner 严格区分——`continue_work` 不写邀请行；含他人任务用 `request_collaboration` + 末行 `@名称`。
+- **启动条件**：安排协作协议校验或 DSH 回复自检修复时。
+- **验收标准**：owner 混合计划正确使用 `request_collaboration`、`continue_work` 不带邀请、调度器按 status 正确分发。
+- **关联**：`AGENT_DISCUSSION_SPEC.md`、`collaboration_protocol.py`、`docs/COLLABORATION_DISPATCH_DESIGN.md`
+
 > 注：P0-2 的后续实施项（实例锁、生产迁移、session 条件写回、工作区身份、统一 Adapter 等）由 `P0-2_VERIFY_LOG.md` 追踪，不在本 backlog。
