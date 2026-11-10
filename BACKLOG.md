@@ -101,6 +101,8 @@
 
 ### 7. 前端测试 DOM mock 补齐 Node.before
 
+当前处置（2026-11-10，entry-2647）。原触发问题已随 UI 简化移除 `messagesNode.before()` 调用而消除，当前 `collaboration_ui.js` 使用 `taskHost.append(collaborationRoot)`。用户报告的后续专项 10 项及全套 167 项回归通过（1 跳过），依据见[UI 设计第 8 节](docs/UI_SIMPLIFICATION_DESIGN.md#8-实施结果风险与剩余缺口)。本次仅核对文档与源码，未重跑测试。原补齐 mock 的独立修复方案已由调用移除方案取代，以下暂缓状态、失败证据及验收要求保留为登记时历史。
+
 - **需求**：修复 `test_frontend.cjs` 的 DOM mock 缺少 `before()`，导致 `collaboration_ui.js:5` 的 `messagesNode.before(collaborationRoot)` 抛错、`test_capabilities.FrontendTests.test_polling_regressions` 失败的问题。
 - **状态**：已确认但暂缓（独立修复；暂缓对合入门槛的影响尚待确认）
 - **暂缓影响**：正确性问题（前端回归测试无法通过，轮询断言被初始化异常阻断；不据此认定真实浏览器也缺该方法）
