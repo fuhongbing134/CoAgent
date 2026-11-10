@@ -1,5 +1,7 @@
 # Collaboration protocol v1 — stage 1
 
+> Reading note (2026-11-10, entry-2647). The stage sections retain their original implementation snapshots. Later protocol decisions are recorded in the Issue #8 update below and in the [finalized design](ISSUE8_FIX_PLAN.md). See the [verification record](ISSUE8_VERIFY_TEST.md) for observed results and remaining boundaries.
+
 Stage 1 provides `agent_registry.py` and `collaboration_protocol.py` as standalone
 building blocks. It does not change the running workbench, route messages, parse
 terminal invitations, schedule tasks, or call an Agent CLI.
