@@ -7,7 +7,6 @@
 | 主题 | 文档路径 | 现状 |
 |---|---|---|
 | 草稿、讨论与想法 | [drafts/README.md](drafts/README.md) | 未入正式计划的提案、调研及架构讨论集中于此；废弃方案保留状态和原因 |
-| 求职作品优化路线 | 原路径 `CAREER_ROADMAP_DESIGN.md`（文件缺失） | 旧索引记录为八周核心、八周补强草案；本次未找到原稿，未迁移或重建，找回后按实际状态归类 |
 | 用户期望对齐规范 | [EXPECTATION_ALIGNMENT_DESIGN.md](design/EXPECTATION_ALIGNMENT_DESIGN.md) | 两份规范补齐期望基线、逐步核对和纠偏，实施与检查结果见正文，待非作者审核 |
 | Grok 适配修正 | [GROK_ADAPTATION_DESIGN.md](design/GROK_ADAPTATION_DESIGN.md) | entry-2105 修正已通过 Grok 独立复查，R1 关闭，R2/R3 及已核对 P2 维持关闭；真实 CLI 验收与合入状态另待证据 |
 | 协作任务交接与计划接收 | [COLLABORATION_DISPATCH_DESIGN.md](design/COLLABORATION_DISPATCH_DESIGN.md) | 方案已实现（normalize_owner_plan 归一化），三组回归通过；真实环境增量追加已验证一条路径，最终收尾另有协议失败，详见正文 |
