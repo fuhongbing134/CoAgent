@@ -15,6 +15,7 @@
 | 通用工具授权 | [drafts/TOOL_AUTHORIZATION_DESIGN.md](drafts/TOOL_AUTHORIZATION_DESIGN.md) | 草案待详细讨论；四级分类与能力目录提案，未实施、未改变权限 |
 | 规范遵从设计与参考调研 | [AGENT_SPEC_COMPLIANCE_DESIGN.md](AGENT_SPEC_COMPLIANCE_DESIGN.md)；[调研资料](drafts/AGENT_SPEC_COMPLIANCE_RESEARCH.md) | 设计保留已实现的注入及验证记录；未选型的措施集合移入草稿区 |
 | 架构分析与复核 | [drafts/architecture-review/README.md](drafts/architecture-review/README.md) | 三方原稿、修订和汇总整体归档；现状观察可供参考，改进建议不等于正式开发计划 |
+| 架构现状与改进方向 | [ARCHITECTURE.md](ARCHITECTURE.md) | 官方现状图已定稿；改进方向为提案未实施；adapter execute 已收敛，普通文件退路延后，共享适配唯一性保留分歧待裁决 |
 | Git 行为约束 | 本条记录（entry-2582） | 已决定放弃代码自动 Git，改用 spec 约束 Git 行为；教训是实施前先验证 Agent 原生能力，再决定是否需要额外代码。历史设计保留于原 feature 分支 |
 | 工作台 UI 简化 | [UI_SIMPLIFICATION_DESIGN.md](UI_SIMPLIFICATION_DESIGN.md) | 已实施，用户报告回归通过并确认小卡片、任务区与目录面板移除；窄屏及其余浏览器交互验收待完成，证据见第 8 节 |
 
