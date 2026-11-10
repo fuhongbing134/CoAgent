@@ -4,8 +4,8 @@
 
 - **文档状态：已决定（设计定稿）；方案状态：已实施、回归通过、浏览器三项验收通过；窄屏及其他浏览器场景待验收。** 验证依据为用户提供的回归日志及三项界面确认，具体范围见第8节；未宣称完整浏览器验收通过。
 - 决策依据：用户明确接受目录面板删除后页面不再查看或修改目录、小卡片仅展示工作台支持且可运行的 Agent、环境检测只删 UI 保留后端；entry-2020 双方收敛设计，entry-2024 用户确认按该方案推进。后续用户授权实施，并提供回归结果及浏览器三项确认；entry-2044 同步实际结果。
-- 适用规范：[agent-discussion-spec v1.2.0](../specs/AGENT_DISCUSSION_SPEC.md)、[design-decision-record-spec v1.1.0](../specs/DESIGN_DECISION_RECORD_SPEC.md)。本轮纯设计文档，code-review-spec v1.0.0 不适用；后续编码与独立审核按[代码检视规范](../specs/CODE_REVIEW_SPEC.md)执行。
-- 关联：[web_chat.py](../web_chat.py)、[collaboration_ui.js](../collaboration_ui.js)、[test_frontend.cjs](../test_frontend.cjs)、[test_capabilities.py](../test_capabilities.py)、[失败可见性设计](FAILURE_VISIBILITY_DESIGN.md)、[设计索引](README.md)。代码行号为前轮只读定位位置，实施时以函数定位。
+- 适用规范：[agent-discussion-spec v1.2.0](../../specs/AGENT_DISCUSSION_SPEC.md)、[design-decision-record-spec v1.1.0](../../specs/DESIGN_DECISION_RECORD_SPEC.md)。本轮纯设计文档，code-review-spec v1.0.0 不适用；后续编码与独立审核按[代码检视规范](../../specs/CODE_REVIEW_SPEC.md)执行。
+- 关联：[web_chat.py](../../web_chat.py)、[collaboration_ui.js](../../collaboration_ui.js)、[test_frontend.cjs](../../test_frontend.cjs)、[test_capabilities.py](../../test_capabilities.py)、[失败可见性设计](FAILURE_VISIBILITY_DESIGN.md)、[设计索引](../README.md)。代码行号为前轮只读定位位置，实施时以函数定位。
 - 设计索引已随 UI 实施登记本文与工具授权草案；本次仅更新本文的实施与验证记录。
 
 ## 2. 背景与目标

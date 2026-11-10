@@ -1,6 +1,6 @@
 # 架构现状与改进方向
 
-> 本文档是「现状记录定稿」与「改进方向提案」的汇总，遵循 [design-decision-record-spec](../specs/DESIGN_DECISION_RECORD_SPEC.md) 与 [document-management-spec](../specs/DOCUMENT_MANAGEMENT_SPEC.md)。
+> 本文档是「现状记录定稿」与「改进方向提案」的汇总，遵循 [design-decision-record-spec](../../specs/DESIGN_DECISION_RECORD_SPEC.md) 与 [document-management-spec](../../specs/DOCUMENT_MANAGEMENT_SPEC.md)。
 > 三方收敛来源：`docs/drafts/architecture-review/` 的 CODEX / DEEPSEEK_HARNESS / GROK 原稿、第二轮修订及 SUMMARY，本轮 Codex 提案 CX-F01/F02/F03，经 Grok 与 DeepSeek Harness 逐项复核后收敛。
 
 | 元信息 | 值 |

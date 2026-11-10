@@ -20,7 +20,7 @@
 | 层次 | 内容 |
 |---|---|
 | 长期目标 | 让 Agent 在执行任务前及任务场景变化时，自动发现、判断并应用相关规范（spec）与工作流程（skill），在执行过程中遵守约束，并提供可检查的执行结果。 |
-| 当前做法 | 先做通用入口「发现 → 判断 → 加载」，以 [agent-discussion-spec v1.0.0](../specs/AGENT_DISCUSSION_SPEC.md) 为第一个验证场景打通；任务场景变化时重新判断适用内容，不一次铺开所有场景。 |
+| 当前做法 | 先做通用入口「发现 → 判断 → 加载」，以 [agent-discussion-spec v1.0.0](../../specs/AGENT_DISCUSSION_SPEC.md) 为第一个验证场景打通；任务场景变化时重新判断适用内容，不一次铺开所有场景。 |
 | 保障手段 | 当前聚焦「拦 + 查」；它们服务于长期目标，是保障手段，不是目标本身。 |
 
 本文中，**spec** 表示适用时必须遵守的约束；**skill** 表示固定工作流程，是否强制使用依其适用条件与相关要求判断。两者在「发现 → 判断 → 加载」层采用通用思路，加载后的约束与流程执行方式仍需分别设计和验证；加载完成不等于已经遵从。
@@ -38,7 +38,7 @@
 
 ### 2.1 调研与理解框架
 
-Codex 与 DeepSeek 分别调研后，汇总为 [43 个措施条目](drafts/AGENT_SPEC_COMPLIANCE_RESEARCH.md)。它们包含产品机制、应用设计、社区实现和研究方法，部分可组合或重叠，不是 43 套互斥的完整方案。
+Codex 与 DeepSeek 分别调研后，汇总为 [43 个措施条目](../drafts/AGENT_SPEC_COMPLIANCE_RESEARCH.md)。它们包含产品机制、应用设计、社区实现和研究方法，部分可组合或重叠，不是 43 套互斥的完整方案。
 
 | 环节 | 解决的问题 |
 |---|---|
@@ -75,7 +75,7 @@ Codex 与 DeepSeek 分别调研后，汇总为 [43 个措施条目](drafts/AGENT
 
 | 环节 | 文档规定与代码现状 | 依据 |
 |---|---|---|
-| 发现 | AGENTS.md 指向 specs/README.md；索引列出规范路径、适用场景与版本。所查工作台后台未读取或固定注入这些文件。 | [AGENTS.md](../AGENTS.md) 第 7 行；[规范索引](../specs/README.md) 第 26 行；web_chat.py:build_agent_prompt:1797 |
+| 发现 | AGENTS.md 指向 specs/README.md；索引列出规范路径、适用场景与版本。所查工作台后台未读取或固定注入这些文件。 | [AGENTS.md](../../AGENTS.md) 第 7 行；[规范索引](../../specs/README.md) 第 26 行；web_chat.py:build_agent_prompt:1797 |
 | 判断适用性 | 文档要求 Agent 按场景分为 must_follow / not_applicable / uncertain，由负责人将判定写入任务 instruction。判断由 Agent 完成，后台不自动分类，也不检查判定完整性；instruction 仅被要求为非空文本。 | AGENTS.md 第 7–12 行；specs/README.md 第 7–14 行；collaboration_protocol.py:validate_plan:32 |
 | 加载正文 | 索引要求读取 must_follow 的正文；后台不自动读取并注入选中文档，也不检查加载成功。负责人写入 instruction 的名称、路径、摘要可随任务传递，但不保证包含正文。 | specs/README.md 第 11–12 行；collaboration_service.py:call:170 |
 
@@ -106,7 +106,7 @@ build_agent_prompt()（web_chat.py 第 1797–1857 行）只拼接「工作目�
 
 ## 3. 技术选型
 
-「查」的落地方式为负责人交付审核（见 [agent-discussion-spec v1.1.0 §6](../specs/AGENT_DISCUSSION_SPEC.md)）：实际核对五项、留下依据并在已有授权内纠正；owner 负责审核，final_responder 据已审核材料汇总披露。复用现有输出，不新增角色、协议字段或审核系统；新增程序「拦」按具体风险与成本单独决定，不预设候选项实施顺序。核对与纠正有实际成本，效果仍待验证。
+「查」的落地方式为负责人交付审核（见 [agent-discussion-spec v1.1.0 §6](../../specs/AGENT_DISCUSSION_SPEC.md)）：实际核对五项、留下依据并在已有授权内纠正；owner 负责审核，final_responder 据已审核材料汇总披露。复用现有输出，不新增角色、协议字段或审核系统；新增程序「拦」按具体风险与成本单独决定，不预设候选项实施顺序。核对与纠正有实际成本，效果仍待验证。
 
 ### 3.1 候选规则（备选，待定）
 
@@ -153,7 +153,7 @@ build_agent_prompt()（web_chat.py 第 1797–1857 行）只拼接「工作目�
 
 #### 与前期调研的对应关系
 
-本候选可视为[43 项调研措施](drafts/AGENT_SPEC_COMPLIANCE_RESEARCH.md)的组合应用，不主张提出全新基础机制：项目指令文件与索引对应第 5 项，按描述判断／按需加载对应第 8、10 项，结构化清单对应第 14、26 项，差异复核借鉴第 27 项独立审核思想，修正留痕对应第 33 项审计记录。清单差异检查不是完整独立审核，规范清单也不等同于完整 skill 流程执行；具体组合的健壮性尚未实测。
+本候选可视为[43 项调研措施](../drafts/AGENT_SPEC_COMPLIANCE_RESEARCH.md)的组合应用，不主张提出全新基础机制：项目指令文件与索引对应第 5 项，按描述判断／按需加载对应第 8、10 项，结构化清单对应第 14、26 项，差异复核借鉴第 27 项独立审核思想，修正留痕对应第 33 项审计记录。清单差异检查不是完整独立审核，规范清单也不等同于完整 skill 流程执行；具体组合的健壮性尚未实测。
 
 本轮三问自检：直接服务任务前及场景变化时的发现、判断、加载目标；复用现有索引与 id/version，比较已有调研机制；暂不确定后台预判、自动学习或扩大权限治理，避免超出当前讨论范围。尚待确认的加载证据、执行前衔接及共同漏判处理属于候选缺口，不以文档记录代替实现。
 
@@ -231,7 +231,7 @@ build_agent_prompt()（web_chat.py 第 1797–1857 行）只拼接「工作目�
 
 ## 6. 调试与结果记录
 
-采用 **append-only 追加式**，参考 [P0-2_VERIFY_LOG.md](../P0-2_VERIFY_LOG.md)，保留历史结论及后续修正依据。
+采用 **append-only 追加式**，参考 [P0-2_VERIFY_LOG.md](../../P0-2_VERIFY_LOG.md)，保留历史结论及后续修正依据。
 
 ### 2026-10-28 17:24:53 +08:00 — 首期索引注入运行验证通过
 

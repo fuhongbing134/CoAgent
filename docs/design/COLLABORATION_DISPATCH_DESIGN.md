@@ -3,9 +3,9 @@
 ## 1. 文档状态与关联
 
 - **文档状态：已决定；方案实施状态：已实现（代码与单元测试完成，真实后端待验证）**。方案已收敛（含 `entry-1839` 二次审核），用户已授权实施。已实现不代表全部环境已验证，实际验证范围见第 8 节。
-- 适用规范：[agent-discussion-spec v1.2.0](../specs/AGENT_DISCUSSION_SPEC.md)、[design-decision-record-spec v1.1.0](../specs/DESIGN_DECISION_RECORD_SPEC.md)。首次定位留痕使用后者 v1.0.0，当前实施结果记录遵循后者 v1.1.0 的阶段边界及前者 v1.2.0。
-- 关联代码：[collaboration_protocol.py](../collaboration_protocol.py)、[collaboration_lifecycle.py](../collaboration_lifecycle.py)、[collaboration_service.py](../collaboration_service.py)。
-- 关联记录：工作台定位任务 `entry-1806`，含 DeepSeek 历史核查与 Codex 独立复核；[设计文档索引](README.md)。本文汇总已有材料，本轮不重新查询数据库或运行复现实验。
+- 适用规范：[agent-discussion-spec v1.2.0](../../specs/AGENT_DISCUSSION_SPEC.md)、[design-decision-record-spec v1.1.0](../../specs/DESIGN_DECISION_RECORD_SPEC.md)。首次定位留痕使用后者 v1.0.0，当前实施结果记录遵循后者 v1.1.0 的阶段边界及前者 v1.2.0。
+- 关联代码：[collaboration_protocol.py](../../collaboration_protocol.py)、[collaboration_lifecycle.py](../../collaboration_lifecycle.py)、[collaboration_service.py](../../collaboration_service.py)。
+- 关联记录：工作台定位任务 `entry-1806`，含 DeepSeek 历史核查与 Codex 独立复核；[设计文档索引](../README.md)。本文汇总已有材料，本轮不重新查询数据库或运行复现实验。
 
 ## 2. 背景与目标（含功能定位）
 
@@ -100,9 +100,9 @@
 
 ### 已实施
 
-- [collaboration_protocol.py](../collaboration_protocol.py)：拆分 `_validate_plan_structure` 输入结构校验与 `validate_plan` 完整依赖图校验；新增无输入副作用的 `normalize_owner_plan` 纯函数。省略 plan 表示无更新；completed 空 plan 先检查结构和角色一致再无更新；非空输入保留旧任务并追加新 ID，同 ID 规范化后不一致或输入内重复 ID 均拒绝，合并后执行完整依赖图校验。省略与显式 null 区分，后者不视为合法省略。
-- [collaboration_lifecycle.py](../collaboration_lifecycle.py)：`accept` 在事务内基于最新完整计划与原始输入调用共享归一化函数，复用只插入新增任务、计划更新及未完成任务/活动调用收尾检查；旧定义、状态和结果保留，非法追加不部分写入计划或任务。
-- [collaboration_service.py](../collaboration_service.py)：owner 解析先做结构校验，解析后用当前计划调用共享归一化并执行完整图校验；保留未合并输入交给事务接收层按最新计划复核。同步 owner 提示中的增量语义。
+- [collaboration_protocol.py](../../collaboration_protocol.py)：拆分 `_validate_plan_structure` 输入结构校验与 `validate_plan` 完整依赖图校验；新增无输入副作用的 `normalize_owner_plan` 纯函数。省略 plan 表示无更新；completed 空 plan 先检查结构和角色一致再无更新；非空输入保留旧任务并追加新 ID，同 ID 规范化后不一致或输入内重复 ID 均拒绝，合并后执行完整依赖图校验。省略与显式 null 区分，后者不视为合法省略。
+- [collaboration_lifecycle.py](../../collaboration_lifecycle.py)：`accept` 在事务内基于最新完整计划与原始输入调用共享归一化函数，复用只插入新增任务、计划更新及未完成任务/活动调用收尾检查；旧定义、状态和结果保留，非法追加不部分写入计划或任务。
+- [collaboration_service.py](../../collaboration_service.py)：owner 解析先做结构校验，解析后用当前计划调用共享归一化并执行完整图校验；保留未合并输入交给事务接收层按最新计划复核。同步 owner 提示中的增量语义。
 - `append_plan()` 保持完整计划契约不变；实施时核查仅发现测试调用。未扩展驱动、授权模型、预算或数据库结构。
 
 ### 验证方式与实际结果
@@ -115,7 +115,7 @@
 | 增量追加与完整计划兼容 | PASS：自任务/他人任务可依赖旧任务并派发，旧结果保留；既有完整计划追加仅执行一次用例通过 |
 | 非法追加与原子性 | PASS：篡改已完成任务、输入内重复 ID、未知依赖、自依赖、环均拒绝，计划及任务无部分写入 |
 
-- 测试文件：[test_issue8.py](../test_issue8.py)、[test_direct_answer.py](../test_direct_answer.py)、[test_collaboration_foundation.py](../test_collaboration_foundation.py)。旧 owner 空计划拒绝断言按新契约替换，完整依赖图拒绝断言迁至完整校验入口，事务拒绝覆盖保留。
+- 测试文件：[test_issue8.py](../../test_issue8.py)、[test_direct_answer.py](../../test_direct_answer.py)、[test_collaboration_foundation.py](../../test_collaboration_foundation.py)。旧 owner 空计划拒绝断言按新契约替换，完整依赖图拒绝断言迁至完整校验入口，事务拒绝覆盖保留。
 - `python -B -m unittest test_issue8 test_direct_answer test_collaboration_service test_collaboration_lifecycle test_collaboration_foundation test_collaboration_entry`：59 项，58 通过、1 跳过。
 - `python -B -m unittest test_collaboration_actions test_collaboration_batches`：10 项全部通过。合计 **69 项：68 通过、1 跳过**；跳过项为需显式启用的真实 CLI 测试。
 - 首轮既有回归出现 6 个失败报告，来自两处仍要求 owner 解析执行完整依赖图校验的测试；按新边界调整后通过，最终 foundation 单独复跑 11 项通过。
