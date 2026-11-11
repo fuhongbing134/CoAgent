@@ -4,8 +4,8 @@
 
 | 分区 | 入口 | 说明 |
 |---|---|---|
-| 设计文档 | [design/README.md](design/README.md) | 已进入正式计划的方案/技术设计，文件级清单与现状见分区内 |
 | 架构文档 | [architecture/README.md](architecture/README.md) | 架构现状记录、改进方向与调用流程统一稿 |
+| 设计文档 | [design/README.md](design/README.md) | 已进入正式计划的方案/技术设计，文件级清单与现状见分区内 |
 | 草稿与讨论 | [drafts/README.md](drafts/README.md) | 未入正式计划的提案、调研、讨论与废弃方案归档 |
 | Git 行为约束 | 本条记录（entry-2582） | 已决定放弃代码自动 Git，改用 spec 约束 Git 行为；教训是实施前先验证 Agent 原生能力，再决定是否需要额外代码。历史设计保留于原 feature 分支 |
 

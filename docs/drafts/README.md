@@ -9,9 +9,9 @@
 | 分类 | 文档 | 状态与收录理由 |
 |---|---|---|
 | 三端终审通过 | [工作台调用流程讨论记录](workbench-call-flow/README.md) | 保留三端独立原稿、三份互审及44项处理映射；[统一稿](../architecture/WORKBENCH_CALL_FLOW.md)已形成源码静态核对层面的共识，渲染与运行验证边界见正文；不构成新增开发计划 |
+| 讨论中 | [架构讨论系列](architecture-review/README.md)及[第二轮汇总](architecture-review/SUMMARY.md#第二轮复核汇总原判断修正及维持对照) | 三方署名分析、事实核查和修订历史整体保存；含已实现现状的观察，但改进建议尚未正式选定，不能当作官方架构或整体实施计划 |
 | 讨论中 | [三后端skill机制与第一步方案](SKILL_MECHANISM_DISCUSSION.md) | 已汇总复盘及三端共识；通用规范1.0.0已生效；entry-2882评估暂不落地文档管理skill，保留候选、理由与重评条件，历史异议保留 |
 | 讨论中 | [通用工具授权框架](TOOL_AUTHORIZATION_DESIGN.md) | 四级分类与能力目录仍为提案，未定稿、未实施，未列入当前正式开发计划 |
-| 讨论中 | [架构讨论系列](architecture-review/README.md)及[第二轮汇总](architecture-review/SUMMARY.md#第二轮复核汇总原判断修正及维持对照) | 三方署名分析、事实核查和修订历史整体保存；含已实现现状的观察，但改进建议尚未正式选定，不能当作官方架构或整体实施计划 |
 | 待评估 | [Agent 规范遵从措施调研](AGENT_SPEC_COMPLIANCE_RESEARCH.md) | 43 项参考措施的资料集合，不是 43 项开发任务；个别措施已被采用不代表整份资料已进入计划 |
 | 废弃 | 暂无可迁入的独立文档 | 放弃自动 Git 的决定保留在[正式索引的 Git 行为约束记录](../README.md)；原设计仅存于历史 feature 分支，本次不恢复或虚构文件 |
 
