@@ -2,8 +2,8 @@
 
 | 字段 | 值 |
 |---|---|
-| 状态 | 已批准，已落实于 code-review-spec v1.3.0 |
-| 归位依据 | 已批准落实，作为正式设计决策记录归入 docs/design/（正式设计文档区）；正式条款以 code-review-spec §14 为准 |
+| 状态 | 已编写，规范条款已落实于 code-review-spec v1.3.0 §13.1，待复审合入 |
+| 归位依据 | 已批准落实，作为正式设计决策记录归入 docs/design/（正式设计文档区）；正式条款以 code-review-spec §13.1 为准 |
 | 用户来源 | entry-2927；批准与落地顺序见 entry-2937 |
 | 落地 | specs/CODE_REVIEW_SPEC.md §7/§8/§10/§13 及 §14 变更历史 |
 

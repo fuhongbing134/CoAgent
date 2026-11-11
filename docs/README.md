@@ -17,6 +17,7 @@
 | 架构现状与改进方向 | [ARCHITECTURE.md](architecture/ARCHITECTURE.md) | 官方现状图已定稿；改进方向为提案未实施；adapter execute 已收敛，普通文件退路延后，共享适配唯一性保留分歧待裁决 |
 | Git 行为约束 | 本条记录（entry-2582） | 已决定放弃代码自动 Git，改用 spec 约束 Git 行为；教训是实施前先验证 Agent 原生能力，再决定是否需要额外代码。历史设计保留于原 feature 分支 |
 | 工作台 UI 简化 | [UI_SIMPLIFICATION_DESIGN.md](design/UI_SIMPLIFICATION_DESIGN.md) | 已实施，用户报告回归通过并确认小卡片、任务区与目录面板移除；窄屏及其余浏览器交互验收待完成，证据见第 8 节 |
+| 代码变更与现状图文同步 | [DIAGRAM_SYNC_RULES_DESIGN.md](design/DIAGRAM_SYNC_RULES_DESIGN.md) | 已编写，规范条款见 code-review-spec 1.3.0 §13.1，待复审合入 |
 
 本索引不代表目录中其他既有设计或研究文档已迁移或完成新规范核查。本次未增加 docs 索引的自动注入。
 
