@@ -27,6 +27,6 @@
 |---|---|---|---|---|---|---|
 | agent-discussion-spec | Agent 讨论约束规范 | `AGENT_DISCUSSION_SPEC.md` | 多 Agent 协作中的讨论（僵持裁决、预算与轮次、异议记录、协议衔接） | 单 Agent 独立执行、无协作讨论的任务 | final | 1.2.0 |
 | design-decision-record-spec | 设计决策留痕规范 | `DESIGN_DECISION_RECORD_SPEC.md` | 方案/技术决策设计与讨论需沉淀背景与决策理由 | 纯问答/无设计取舍的简单修改 | final | 1.2.0 |
-| code-review-spec | 编码与代码检视规范 | `CODE_REVIEW_SPEC.md` | 编码与代码检视（含合入代码变更） | 纯讨论／无代码变更的场景 | final | 1.2.0 |
+| code-review-spec | 编码与代码检视规范 | `CODE_REVIEW_SPEC.md` | 编码与代码检视（含合入代码变更） | 纯讨论／无代码变更的场景 | final | 1.3.0 |
 | document-management-spec | 文档管理规范 | `DOCUMENT_MANAGEMENT_SPEC.md` | 项目主动维护、供持续使用或决策参考的文档之新增、更新、状态及路径调整、拆分、合并和删除 | 纯阅读、依赖与生成物、会话运行态、临时探测及一般一次性原始日志的日常管理 | final | 1.0.0 |
 | task-execution-spec | 任务执行通用规范 | [TASK_EXECUTION_SPEC.md](TASK_EXECUTION_SPEC.md) | 单/多 Agent 实质查证、讨论、设计、实现、检视及文档维护 | 纯寒暄、简单收悉及无实质工作的确认 | final | 1.0.0 |
