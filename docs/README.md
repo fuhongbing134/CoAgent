@@ -1,23 +1,13 @@
-# docs/ — 设计文档索引
+# docs/ — 文档索引
 
-本目录存放方案/技术决策的设计文档，按 [design-decision-record-spec](../specs/DESIGN_DECISION_RECORD_SPEC.md) 维护。索引按「主题 → 文档路径 → 一句话现状」定位，同主题连续演进优先更新已有文档，较大的独立方案再拆分并互相引用。
+本目录存放方案/技术决策的设计文档、架构文档与草稿讨论，按 [design-decision-record-spec](../specs/DESIGN_DECISION_RECORD_SPEC.md) 与 [document-management-spec](../specs/DOCUMENT_MANAGEMENT_SPEC.md) 维护。索引按「分区 → 入口 → 一句话说明」定位，各分区内的文件级清单与现状见对应子目录 README。
 
-文档分类、状态、引用与历史维护同时遵循[文档管理规范](../specs/DOCUMENT_MANAGEMENT_SPEC.md)。以下摘要按正文已有证据维护，具体验证范围以对应记录为准。
-
-| 主题 | 文档路径 | 现状 |
+| 分区 | 入口 | 说明 |
 |---|---|---|
-| 草稿、讨论与想法 | [drafts/README.md](drafts/README.md) | 未入正式计划的提案、调研及架构讨论集中于此；废弃方案保留状态和原因 |
-| 用户期望对齐规范 | [EXPECTATION_ALIGNMENT_DESIGN.md](design/EXPECTATION_ALIGNMENT_DESIGN.md) | 两份规范补齐期望基线、逐步核对和纠偏，实施与检查结果见正文，待非作者审核 |
-| Grok 适配修正 | [GROK_ADAPTATION_DESIGN.md](design/GROK_ADAPTATION_DESIGN.md) | entry-2105 修正已通过 Grok 独立复查，R1 关闭，R2/R3 及已核对 P2 维持关闭；真实 CLI 验收与合入状态另待证据 |
-| 协作任务交接与计划接收 | [COLLABORATION_DISPATCH_DESIGN.md](design/COLLABORATION_DISPATCH_DESIGN.md) | 方案已实现（normalize_owner_plan 归一化），三组回归通过；真实环境增量追加已验证一条路径，最终收尾另有协议失败，详见正文 |
-| 失败可见性 | [FAILURE_VISIBILITY_DESIGN.md](design/FAILURE_VISIBILITY_DESIGN.md) | 方向 A 已实现，专项回归通过；第 8 节保留当时全套 165 通过/1 失败/1 跳过；前端失败后续处置见 UI 设计第 8 节，完整真实环境验收及合入状态待补证据 |
-| 通用工具授权 | [drafts/TOOL_AUTHORIZATION_DESIGN.md](drafts/TOOL_AUTHORIZATION_DESIGN.md) | 草案待详细讨论；四级分类与能力目录提案，未实施、未改变权限 |
-| 规范遵从设计与参考调研 | [AGENT_SPEC_COMPLIANCE_DESIGN.md](design/AGENT_SPEC_COMPLIANCE_DESIGN.md)；[调研资料](drafts/AGENT_SPEC_COMPLIANCE_RESEARCH.md) | 设计保留已实现的注入及验证记录；未选型的措施集合移入草稿区 |
-| 架构分析与复核 | [drafts/architecture-review/README.md](drafts/architecture-review/README.md) | 三方原稿、修订和汇总整体归档；现状观察可供参考，改进建议不等于正式开发计划 |
-| 架构现状与改进方向 | [ARCHITECTURE.md](architecture/ARCHITECTURE.md) | 官方现状图已定稿；改进方向为提案未实施；adapter execute 已收敛，普通文件退路延后，共享适配唯一性保留分歧待裁决 |
+| 设计文档 | [design/README.md](design/README.md) | 已进入正式计划的方案/技术设计，文件级清单与现状见分区内 |
+| 架构文档 | [architecture/README.md](architecture/README.md) | 架构现状记录、改进方向与调用流程统一稿 |
+| 草稿与讨论 | [drafts/README.md](drafts/README.md) | 未入正式计划的提案、调研、讨论与废弃方案归档 |
 | Git 行为约束 | 本条记录（entry-2582） | 已决定放弃代码自动 Git，改用 spec 约束 Git 行为；教训是实施前先验证 Agent 原生能力，再决定是否需要额外代码。历史设计保留于原 feature 分支 |
-| 工作台 UI 简化 | [UI_SIMPLIFICATION_DESIGN.md](design/UI_SIMPLIFICATION_DESIGN.md) | 已实施，用户报告回归通过并确认小卡片、任务区与目录面板移除；窄屏及其余浏览器交互验收待完成，证据见第 8 节 |
-| 代码变更与现状图文同步 | [DIAGRAM_SYNC_RULES_DESIGN.md](design/DIAGRAM_SYNC_RULES_DESIGN.md) | 已编写，规范条款见 code-review-spec 1.3.0 §13.1，待复审合入 |
 
 本索引不代表目录中其他既有设计或研究文档已迁移或完成新规范核查。本次未增加 docs 索引的自动注入。
 
