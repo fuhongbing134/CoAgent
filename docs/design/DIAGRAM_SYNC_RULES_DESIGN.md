@@ -9,6 +9,8 @@
 
 ## 用户基线
 
+entry-3189后继说明：原1.3.0落地记录保留历史语境。当前图文规则源仍为[CODE_REVIEW_SPEC.md](../../specs/CODE_REVIEW_SPEC.md)§13.1，作者流程通过[CODE_WRITING_SPEC.md](../../specs/CODE_WRITING_SPEC.md)§13.1衔接；本次不改变图文同步门槛。
+
 用户原始疑问（entry-2927）：架构图及其说明、执行流程图及其说明都是对当前代码的描述；代码修改后「目前是不是没有对应的约束」把修改同步到这些图上？希望实现「代码修改并合入对应分支后，相关图片、描述随之调整」。
 
 查证结论：并非完全无约束——code-review-spec §13 与 design-decision-record-spec §2 已要求同步部分设计文档，document-management-spec §2 要求状态与事实依据一致；缺口在于缺少「每次代码变更对现状图文的触发判断与审核闭环」。本次补齐该影响判断、责任链与合入检查。

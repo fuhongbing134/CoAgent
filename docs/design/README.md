@@ -6,6 +6,8 @@
 |---|---|---|
 | 规范遵从设计与参考调研 | [AGENT_SPEC_COMPLIANCE_DESIGN.md](AGENT_SPEC_COMPLIANCE_DESIGN.md)；[调研资料](../drafts/AGENT_SPEC_COMPLIANCE_RESEARCH.md) | 设计保留已实现的注入及验证记录；未选型的措施集合移入草稿区 |
 | 协作任务交接与计划接收 | [COLLABORATION_DISPATCH_DESIGN.md](COLLABORATION_DISPATCH_DESIGN.md) | 方案已实现（normalize_owner_plan 归一化），三组回归通过；真实环境增量追加已验证一条路径，最终收尾另有协议失败，详见正文 |
+| 工作台并发压测设计 | [CONCURRENCY_BENCHMARK_DESIGN.md](CONCURRENCY_BENCHMARK_DESIGN.md) | entry-3049两端复核后进入实施；完整覆盖仍待验证 |
+| 工作台并发压测证据 | [CONCURRENCY_BENCHMARK_RESULTS.md](CONCURRENCY_BENCHMARK_RESULTS.md) | 隔离工具及实际检查记录；主矩阵执行中，覆盖缺口与待独立检视项见正文 |
 | 代码变更与现状图文同步 | [DIAGRAM_SYNC_RULES_DESIGN.md](DIAGRAM_SYNC_RULES_DESIGN.md) | 已编写，规范条款见 code-review-spec 1.3.0 §13.1，已合入 main |
 | 用户期望对齐规范 | [EXPECTATION_ALIGNMENT_DESIGN.md](EXPECTATION_ALIGNMENT_DESIGN.md) | 两份规范补齐期望基线、逐步核对和纠偏，实施与检查结果见正文，待非作者审核 |
 | 失败可见性 | [FAILURE_VISIBILITY_DESIGN.md](FAILURE_VISIBILITY_DESIGN.md) | 方向 A 已实现，专项回归通过；第 8 节保留当时全套 165 通过/1 失败/1 跳过；前端失败后续处置见 UI 设计第 8 节，完整真实环境验收及合入状态待补证据 |
