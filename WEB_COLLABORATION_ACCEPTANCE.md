@@ -1,5 +1,7 @@
 # 自动协作 Web 联调记录与步骤
 
+示例说明：`<project-root>`为克隆后的项目根目录绝对路径。占位符不能原样执行。
+
 ## 单次 Agent 调用超时配置
 
 Codex 和 DeepSeek Harness 默认均为 1200 秒（20 分钟）。分别读取
@@ -42,7 +44,7 @@ Python 语法检查通过。本环境 `_ssl` 导入失败，未能启动完整�
 先正常停止旧工作台，再启动当前代码。不要同时开多个工作台操作同一个数据库。
 
 ```powershell
-cd C:\Users\FHB\Documents\Codex\agent-lab\step1
+Set-Location -LiteralPath '<project-root>'
 Remove-Item Env:RUN_LIVE_AGENT_TESTS -ErrorAction SilentlyContinue
 .\.venv\Scripts\python.exe .\web_chat.py
 ```
@@ -248,3 +250,10 @@ Remove-Item Env:RUN_LIVE_AGENT_TESTS -ErrorAction SilentlyContinue
 - **未验证（缺口）**：服务实际调用对应的 `transport=stdin` 留档日志、新建/恢复两条真实 CLI 路径、取消/超时/异常退出回归。
 
 **待办提醒**：日志功能（本节）落地后，**重新测试长协作场景**——收集 `transport=stdin` 服务日志 + 补新建/恢复两路径 + 取消/超时，方可闭环 #5。表述口径应为「在已验证范围内，prompt 导致的命令行超长问题已解决」，不保证以后绝不出现任何原因的 WinError 206。
+
+## 变更历史
+
+| 时间 | 版本／议题 | 原状态或决定→新状态或决定 | 原因与证据 | 提出／决定者及来源 | 影响范围 |
+|---|---|---|---|---|---|
+| 2026-11-16 12:24:09 +08:00 | entry-3327／语义返修 | 首轮替换→修正示例及历史语境 | 主题草稿§12；Python本机时钟 | Codex | 仅文档静态检查，独立复核待完成 |
+| 2026-11-16 12:15:57 +08:00 | entry-3327／交付引用清理 | 具体本地定位→可交付摘要或通用占位符 | 用户要求；主题草稿§12；Python本机时钟 | Codex | 保留历史事实与版本范围；作者检查，待独立复核 |

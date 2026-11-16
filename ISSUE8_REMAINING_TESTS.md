@@ -1,5 +1,7 @@
 # issue #8 待测试清单（重启后逐条执行）
 
+示例说明：`<project-root>`为克隆后的项目根目录绝对路径。占位符不能原样执行。
+
 > 阅读更新（2026-11-10，entry-2647）。本文保留当时重启后的执行计划；后续实际结果见[修复验证记录](ISSUE8_VERIFY_TEST.md)及[定稿方案第八节](ISSUE8_FIX_PLAN.md#八后续修复在核心修复之上)。已有结果不能因本文件标题而重新判为全部待测。取消路径的任务卡、调用状态及进程退出仍有未单独核对边界，本次未追加运行验证。
 
 > 需**重启工作台**后再逐条执行（当前进程尚未加载本次修改）。
@@ -62,8 +64,15 @@
 
 ## F 完整测试套件重跑
 
-- **操作**（命令行，在项目目录 `C:\Users\FHB\Documents\Codex\agent-lab\step1`）：
+- **操作**（命令行，在项目目录 `<project-root>`）：
   ```
   python -m unittest test_issue8 test_collaboration_entry test_collaboration_foundation test_collaboration_lifecycle test_collaboration_actions test_collaboration_service test_collaboration_batches test_direct_answer
   ```
 - **期望**：全绿；真实 CLI 相关项可标注跳过（skip），但不能有失败。
+
+## 变更历史
+
+| 时间 | 版本／议题 | 原状态或决定→新状态或决定 | 原因与证据 | 提出／决定者及来源 | 影响范围 |
+|---|---|---|---|---|---|
+| 2026-11-16 12:24:09 +08:00 | entry-3327／语义返修 | 首轮替换→修正示例及历史语境 | 主题草稿§12；Python本机时钟 | Codex | 仅文档静态检查，独立复核待完成 |
+| 2026-11-16 12:15:57 +08:00 | entry-3327／交付引用清理 | 具体本地定位→可交付摘要或通用占位符 | 用户要求；主题草稿§12；Python本机时钟 | Codex | 保留历史事实与版本范围；作者检查，待独立复核 |

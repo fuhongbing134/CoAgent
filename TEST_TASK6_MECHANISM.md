@@ -1,11 +1,13 @@
 # 任务 6：Windows Job 跨崩溃机制验证
 
+示例说明：`<project-root>`为克隆后的项目根目录绝对路径；`<python>`为已安装Python可执行文件的完整路径；其余位置占位符须按所在参数替换为本机配置。占位符不能原样执行。
+
 状态：仅提供脚本，尚未在目标环境运行。此实验不迁移数据库、不解除工作台占用，也不启动 Codex/DSH 会话。
 
 ## 1. 准备
 
 - 使用 Windows 10/11 的普通 PowerShell；不要在 DSH 沙箱里运行。
-- Python 路径为 `E:\Python\python.exe`，不需要安装依赖。
+- Python 路径为 `<python>`，不需要安装依赖。
 - 默认不需要管理员权限。请先用普通权限运行；权限异常保留原输出，不要先提权重跑掩盖差异。
 - 可以保持工作台原状；脚本不导入项目模块、不连接 `agent_bridge.db`、不停止服务。
 - 请等 DeepSeek 完成脚本审核后再运行。
@@ -15,11 +17,11 @@
 打开普通 PowerShell，完整复制以下命令。预计几十秒，异常超时可能更久：
 
 ```powershell
-Set-Location -LiteralPath 'C:\Users\FHB\Documents\Codex\agent-lab\step1'
-Test-Path -LiteralPath 'E:\Python\python.exe'
+Set-Location -LiteralPath '<project-root>'
+Test-Path -LiteralPath '<python>'
 Test-Path -LiteralPath '.\verify_job_recovery.py'
 $task6Log = Join-Path $env:TEMP ('task6-console-' + (Get-Date -Format 'yyyyMMdd-HHmmss') + '.txt')
-& 'E:\Python\python.exe' -B -u '.\verify_job_recovery.py' 2>&1 | Tee-Object -FilePath $task6Log
+& '<python>' -B -u '.\verify_job_recovery.py' 2>&1 | Tee-Object -FilePath $task6Log
 $task6Exit = $LASTEXITCODE
 Write-Host "Python exit code: $task6Exit"
 Write-Host "Console log: $task6Log"
@@ -27,7 +29,7 @@ Write-Host "Console log: $task6Log"
 
 两个 `Test-Path` 应为 `True`。如果为 `False`，先停止并回传缺失路径；不要执行后续命令。
 
-脚本开头打印 `Evidence directory: C:\...\Temp\task6-job-probe-...`。该唯一目录保留 `report.json`、每个场景的 intent/created/ready 记录及 `manager.log`，方便审核。只在该临时目录写实验数据。
+脚本开头打印 `Evidence directory: <local-path>`。该唯一目录保留 `report.json`、每个场景的 intent/created/ready 记录及 `manager.log`，方便审核。只在该临时目录写实验数据。
 
 ## 3. 怎样看输出
 
@@ -40,7 +42,7 @@ Write-Host "Console log: $task6Log"
 {"case":"before_registration","status":"UNKNOWN","expected_unknown":true, ...}
 {"case":"running_unique","status":"PASS", ...}
 {"case":"extra_handle_prevents_last_close","status":"PASS", ...}
-RESULT exit_code=0 production_verified=false report=C:\...\report.json
+RESULT exit_code=0 production_verified=false report=<local-path>
 ```
 
 | 输出/退出码 | 含义 |
@@ -102,3 +104,10 @@ RESULT exit_code=0 production_verified=false report=C:\...\report.json
 
 - [CreateJobObjectW：创建/打开及生命周期](https://learn.microsoft.com/en-us/windows/win32/api/jobapi2/nf-jobapi2-createjobobjectw)
 - [OpenJobObjectW：访问权限、名称作用域及错误信息](https://learn.microsoft.com/en-us/windows/win32/api/jobapi2/nf-jobapi2-openjobobjectw)
+
+## 变更历史
+
+| 时间 | 版本／议题 | 原状态或决定→新状态或决定 | 原因与证据 | 提出／决定者及来源 | 影响范围 |
+|---|---|---|---|---|---|
+| 2026-11-16 12:24:09 +08:00 | entry-3327／语义返修 | 首轮替换→修正示例及历史语境 | 主题草稿§12；Python本机时钟 | Codex | 仅文档静态检查，独立复核待完成 |
+| 2026-11-16 12:15:57 +08:00 | entry-3327／交付引用清理 | 具体本地定位→可交付摘要或通用占位符 | 用户要求；主题草稿§12；Python本机时钟 | Codex | 保留历史事实与版本范围；作者检查，待独立复核 |

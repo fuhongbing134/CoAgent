@@ -12,6 +12,7 @@
 | 讨论中 | [架构讨论系列](architecture-review/README.md)及[第二轮汇总](architecture-review/SUMMARY.md#第二轮复核汇总原判断修正及维持对照) | 三方署名分析、事实核查和修订历史整体保存；含已实现现状的观察，但改进建议尚未正式选定，不能当作官方架构或整体实施计划 |
 | 讨论中 | [三后端skill机制与第一步方案](SKILL_MECHANISM_DISCUSSION.md) | 已汇总复盘及三端共识；通用规范1.0.0已生效；entry-2882评估暂不落地文档管理skill，保留候选、理由与重评条件，历史异议保留 |
 | 讨论中 | [通用工具授权框架](TOOL_AUTHORIZATION_DESIGN.md) | 四级分类与能力目录仍为提案，未定稿、未实施，未列入当前正式开发计划 |
+| 已形成正式记录 | [BENCHMARK_RESTART_LESSONS_DISCUSSION.md](BENCHMARK_RESTART_LESSONS_DISCUSSION.md) | 0.11；两方已检视相应版本，发现项已作者修正，末次修订未另行独立复查；形成过程及本轮决定；正式教训见[../lessons/BENCHMARK_RESTART_LESSONS.md](../lessons/BENCHMARK_RESTART_LESSONS.md) |
 | 已形成正式记录 | [CODE_EXAMPLE_LIBRARY_DISCUSSION.md](CODE_EXAMPLE_LIBRARY_DISCUSSION.md) | entry-3209；0.8；真实问题见§12、独立检视及处理见§13；正式代码未改，说明修订自查未复查 |
 | 已形成正式记录 | [CODE_SPEC_SPLIT_DISCUSSION.md](CODE_SPEC_SPLIT_DISCUSSION.md) | entry-3189; 0.5; [CODE_WRITING_SPEC.md](../../specs/CODE_WRITING_SPEC.md) 1.0.1 / [CODE_REVIEW_SPEC.md](../../specs/CODE_REVIEW_SPEC.md) 2.0.0; 原落盘版独立检视无阻断，引用历史修订已自查未另行独立复查，效果未验证  本轮补历史表经两端聚焦复查无阻断，范围见治理记录§11 |
 | 已形成正式记录 | [DOCUMENT_LIFECYCLE_HISTORY_DISCUSSION.md](DOCUMENT_LIFECYCLE_HISTORY_DISCUSSION.md) | entry-3234／entry-3244；0.7；文档管理1.3.2及累计33份历史整理；原31份两端初检无阻断（DeepSeek重点四份抽查，Grok结构/哈希与长单元核验），两表及G-F1返修经两端聚焦复查无阻断；本次仅状态同步、作者核对，版本边界见§11 |
@@ -20,7 +21,8 @@
 | 已形成正式记录 | [SPEC_DESCRIPTIONS_DISCUSSION.md](SPEC_DESCRIPTIONS_DISCUSSION.md) | entry-3161综合记录0.4；五份字段新增、一份保留，Grok落盘独立语义核对通过；索引格式及排序已修正，行为效果未验证，依据见§8  本轮补历史表经两端聚焦复查无阻断，范围见治理记录§11 |
 | 需求待实现／未修复 | [无输入依赖却停留受阻卡片的场景](UNNECESSARY_BLOCKED_CARD_SCENARIO.md) | entry-3260；0.1；CARD-BLOCK-001；用户报告建库讨论失败后第二轮需手动给结论才结束；保留候选调用、未知项及验收方向，未复现、未修复 |
 | 待评估 | [Agent 规范遵从措施调研](AGENT_SPEC_COMPLIANCE_RESEARCH.md) | 43 项参考措施的资料集合，不是 43 项开发任务；个别措施已被采用不代表整份资料已进入计划 |
-| 废弃 | 暂无可迁入的独立文档 | 放弃自动 Git 的决定保留在[正式索引的 Git 行为约束记录](../README.md)；原设计仅存于历史 feature 分支，本次不恢复或虚构文件 |
+| 废弃 | [abandoned/concurrency-benchmark/README.md](abandoned/concurrency-benchmark/README.md) | entry-3310旧压测文档、工具归档入口；不作为新基线、不恢复执行 |
+| 废弃 | 无独立文件的历史决定 | 放弃自动 Git 的决定保留在[正式索引的 Git 行为约束记录](../README.md)；原设计仅存于历史 feature 分支，本次不恢复或虚构文件 |
 
 架构系列包含 README、CODEX、DEEPSEEK_HARNESS、GROK、SUMMARY 共五份文件，保留作者、议题编号、第一轮原稿和第二轮修正。正文中的旧目录名称、旧工作区状态和任务范围是当时记录，不代表当前路径；当前入口以本清单为准。
 
@@ -51,6 +53,16 @@ entry-3189：CODE_SPEC_SPLIT_DISCUSSION.md由讨论中转为已形成正式记�
 
 | 时间 | 版本／议题 | 原状态或决定→新状态或决定 | 原因与证据 | 提出／决定者及来源 | 影响范围 |
 |---|---|---|---|---|---|
+| 2026-11-16 13:13:25 +08:00 | entry-3353／G-N1与G-N2收尾 | 两方发现项→作者修正并明确版本范围 | Grok有效检视3f4a86ec1e854356b1c5776a37054e9e；[处理记录](BENCHMARK_RESTART_LESSONS_DISCUSSION.md)§13；Python本机时钟 | Codex按负责人决定处理 | 仅文档；末次修订未另行独立复查，行为效果未验证 |
+| 2026-11-16 13:03:01 +08:00 | entry-3353／N1返修 | 检视发现漏项→删除并补查 | DeepSeek调用685c355e87914e79b46f0664684c5bf0；[返修记录](BENCHMARK_RESTART_LESSONS_DISCUSSION.md)§13；Python本机时钟 | Codex按负责人决定修正 | 作者检查，Grok检视尚待；效果未验证 |
+| 2026-11-16 12:56:49 +08:00 | entry-3353／文档清理与正式化 | 旧表述→删除指定提及并关联正式记录 | 用户要求；[前置记录](BENCHMARK_RESTART_LESSONS_DISCUSSION.md)§13；Python本机时钟 | 用户授权；Codex实施 | 仅文档；作者静态检查，两方检视待完成 |
+| 2026-11-16 12:47:22 +08:00 | entry-3327／0.8状态同步 | 返修后待复核→记录0.7复核及0.8范围 | [主题记录](BENCHMARK_RESTART_LESSONS_DISCUSSION.md)§12；Python本机时钟 | Codex | 仅当前摘要；0.8未另行独立复核，旧历史语境保留 |
+| 2026-11-16 12:24:58 +08:00 | entry-3327／验收返修 | 首轮清理→补语义及交付链接检查 | 主题草稿§12；Python本机时钟 | Codex | 作者静态检查；返修版本待独立复核 |
+| 2026-11-16 12:11:23 +08:00 | entry-3327／主题状态同步 | 提醒及隐含检查→明确触发与可核查义务 | 用户要求；[前置记录](BENCHMARK_RESTART_LESSONS_DISCUSSION.md)§12；Python本机时钟 | 用户授权；Codex实施 | 仅本主题摘要，完整清理及独立复核待完成；作者检查，待独立复核，行为效果未验证 |
+| 2026-11-16 11:43:35+08:00 | entry-3310／收尾 | 待回应及核验→0.4状态同步 | [收尾依据](BENCHMARK_RESTART_LESSONS_DISCUSSION.md)§10—§11；Python本机时钟 | Codex | 仅本主题摘要；0.3核验无阻断，本次未另行独立核验 |
+| 2026-11-16 11:31:41 +08:00 | entry-3310／讨论综合（本轮据主题稿§6重建摘要） | 候选→三方综合供审阅 | [主题形成记录](BENCHMARK_RESTART_LESSONS_DISCUSSION.md)§6 | Codex综合 | 当时0.3，限定及独立核验待回应；本轮误替换历史行后据主题记录恢复语义 |
+| 2026-11-16 11:25:17 +08:00 | entry-3310／旧压测废案 | 活动预检入口→废案入口；新增本轮教训讨论 | entry-3310用户归档授权；前置留稿BENCHMARK_RESTART_LESSONS_DISCUSSION.md；Python本机时钟 | 用户；Codex实施 | 仅归档及引用同步，不恢复测试；教训待讨论 |
+| 2026-11-16 10:46:34 +08:00 | entry-3284／预检（留稿0.2） | 预检待执行→无模型预检通过 | 本轮日志与audit；Python本机时钟 | Codex | 仅预检，完整验收未完成 |
 | 2026-11-15 23:58:34 +08:00 | entry-3260／故障需求登记 | 无入口→CARD-BLOCK-001待实现草稿入口 | 用户要求及场景草稿§1—§6；Python本机时钟 | 用户；Codex记录 | 新增独立状态分组，既有条目相对顺序保留 |
 | 2026-11-15 23:50:33 +08:00 | entry-3244／状态收尾 | 旧待复查摘要→治理0.7及两端完成状态 | 治理记录§10—§11；G-N1；Python本机时钟 | Codex | 当前索引摘要；原条目顺序和旧历史保留 |
 | 2026-11-15 23:36:41 +08:00 | entry-3244／补表返修 | 旧摘要→两主题补表版本及待复查状态 | 治理草稿§8 | Codex | 条目原顺序保留 |

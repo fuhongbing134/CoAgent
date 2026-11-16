@@ -7,7 +7,7 @@
 | 架构文档 | [architecture/README.md](architecture/README.md) | 架构现状记录、改进方向与调用流程统一稿 |
 | 代码判断案例 | [code-examples/README.md](code-examples/README.md) | 入口0.6；好坏对照及两项真实问题，含收录时间与未落地建议；真实案例0.4独立检视无阻断，本次说明自查未复查 |
 | 设计文档 | [design/README.md](design/README.md) | 已进入正式计划的方案/技术设计，文件级清单与现状见分区内 |
-| 草稿与讨论 | [drafts/README.md](drafts/README.md) | 未入正式计划的提案、调研、讨论与废弃方案归档 |
+| 草稿与讨论 | [drafts/README.md](drafts/README.md) | 未入正式计划的提案、调研、讨论与废弃方案；旧压测见[drafts/abandoned/concurrency-benchmark/README.md](drafts/abandoned/concurrency-benchmark/README.md) |
 | 流程教训 | [lessons/README.md](lessons/README.md) | 正式流程／协作教训；事故复盘仍见根目录[postmortem/P0-2_POSTMORTEM.md](../postmortem/P0-2_POSTMORTEM.md)，本轮不迁移旧材料 |
 | Git 行为约束 | 本条记录（entry-2582） | 已决定放弃代码自动 Git，改用 spec 约束 Git 行为；教训是实施前先验证 Agent 原生能力，再决定是否需要额外代码。历史设计保留于原 feature 分支 |
 
@@ -23,6 +23,7 @@
 
 | 时间 | 版本／议题 | 原状态或决定→新状态或决定 | 原因与证据 | 提出／决定者及来源 | 影响范围 |
 |---|---|---|---|---|---|
+| 2026-11-16 11:25:17 +08:00 | entry-3310／旧压测废案 | 草稿分区摘要→补充旧压测废案入口 | entry-3310用户归档授权；前置留稿BENCHMARK_RESTART_LESSONS_DISCUSSION.md；Python本机时钟 | 用户；Codex实施 | 仅归档及引用同步，不恢复测试；教训待讨论 |
 | 2026-11-15 23:21:27 +08:00 | entry-3244／历史倒序整理 | 原历史展示→最新在前、文末六列 | 用户最新要求；合并前置稿见DOCUMENT_LIFECYCLE_HISTORY_DISCUSSION.md§6；时间来源Python本机时钟 | 用户；Codex整理 | 仅历史结构与排序，旧证据和批准边界保留；待两端检视 |
 | 2026-11-15 23:07:40 +08:00 | entry-3234／入口同步 | 原摘要→文档治理修订入口及案例版本同步 | [修订依据](drafts/DOCUMENT_LIFECYCLE_HISTORY_DISCUSSION.md) | 用户；Codex | 当前索引；旧历史保留 |
 | 2026-11-15 22:21:33 +08:00起记录 | entry-3209／首批代码案例 | 用户批准→三主题及入口已建立 | 依据[主题记录](drafts/CODE_EXAMPLE_LIBRARY_DISCUSSION.md)§8—§9 | 用户；Codex实施 | 新分区按路径排序，待两端独立检视、使用效果未验证 |

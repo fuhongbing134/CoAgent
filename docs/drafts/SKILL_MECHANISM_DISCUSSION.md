@@ -1,5 +1,7 @@
 # 三后端 skill 机制讨论与第一步核对方案
 
+示例说明：技能安装示例的源文件与目标目录含义见对应段落。占位符不能原样执行。
+
 当前状态：entry-2848 已汇总三端复盘。后续 project-skill-check-v2 会话记录支持当前环境三端发现、读取并执行共同目录技能，Grok 后期报告已信任。早期隔离实验的证据缺口保留在其历史范围。entry-2869 用户批准通用任务执行规范1.0.0生效，规范及索引已同步，行为效果待后续任务观察。entry-2882 三端评议后结论为暂不落地文档管理skill，理由、候选及重评条件见末节；未创建或安装技能。
 
 早期用户基线来自 entry-2674、entry-2703、entry-2707。目标是在实际工作台让 Codex、DeepSeek Harness、Grok 均能加载并调用项目 skill。当时用户要求三方讨论补充第一步、记录此前讨论、汇报后等其同意再执行，当时仅讨论整理与文档留痕获授权；entry-2736 的后续批准见下文。
@@ -19,7 +21,7 @@
 
 entry-2707 的本轮原文同表可定位，Codex准备 fb3bfc5b657d4b26a28849e9737370e6，DSH复核 929870fbd501478b86d90f87020babda，Grok复核 0ad6821d12e444fe9a73532be1394e82，owner审核 f559006802184cf2971891a298197a27。
 
-Codex历史材料依据当时官方技能资料，DSH/Grok机制依据协作者本地材料与会话报告。当前本机版本、工作台项目发现及加载均待核实。DSH声称无自主扫描、不是独立CLI，保留为DSH报告，运行时结论需入口证据。web_chat.py未见注入关键词仅覆盖该文件的检索范围。捆绑catalog出现不能证明项目发现。Grok报告的prompt-file、cwd、resume、no-subagents及final_delivery限制属于代码阅读报告，尚待与实际版本对应。
+Codex历史材料依据当时官方技能资料，DSH/Grok机制依据协作者会话报告。当前本机版本、工作台项目发现及加载均待核实。DSH声称无自主扫描、不是独立CLI，保留为DSH报告，运行时结论需入口证据。web_chat.py未见注入关键词仅覆盖该文件的检索范围。捆绑catalog出现不能证明项目发现。Grok报告的prompt-file、cwd、resume、no-subagents及final_delivery限制属于代码阅读报告，尚待与实际版本对应。
 
 历史修正保留。Grok曾把CX的 `$` / `/skills` 解读为跨端最低要求，CX原稿只描述Codex语法，本轮Grok接受修正。DSH-K05以项目目录为资源基准，GK以skill目录为基准，第一步查约定，资源实验再判定。
 
@@ -91,7 +93,7 @@ entry-2674形成独立清单及统一矩阵 → 架构阶段保留两项skill议
 
 | 对象 | Codex | DeepSeek Harness | Grok |
 |---|---|---|---|
-| 程序与版本 | 本地候选 `C:\Users\FHB\AppData\Local\OpenAI\Codex\bin\a159911ff70742e9\codex.exe`，0.166.0-alpha.6；未绑定宿主实际环境 | 独立 CLI dsh 0.2.1-rc.2，安装目录 resources/runtime/cli/bin/dsh.cmd | `C:\Users\FHB\.grok\bin\grok.EXE`，1.0.70 (f50904eaee6c) |
+| 程序与版本 | 本地Codex候选程序，0.166.0-alpha.6；未绑定宿主实际环境 | 独立 CLI dsh 0.2.1-rc.2，安装目录 resources/runtime/cli/bin/dsh.cmd | 本地Grok程序，1.0.70 (f50904eaee6c) |
 | 入口与 cwd | web_chat.py:1293/1801；CODEX_CLI、PATH、本地最新程序顺序解析；exec --json --skip-git-repo-check --cd 工作目录 --output-last-message 临时文件，stdin 提示；进程 cwd 同工作目录 | web_chat.py:1265/1896/1940；--profile headless --patch 项目认证补丁 --json -；stdin 提示，cwd=working_directory | web_chat.py:1278/2036/2047、grok_adapter.py:47；--prompt-file --output-format streaming-json --cwd 工作目录 --permission-mode auto 或 dontAsk --no-subagents |
 | 会话与权限 | thread.started 保存 thread_id；有 ID 用 exec resume；普通 workspace-write，最终 read-only，实际仍受宿主配置约束 | --session-id 恢复，NDJSON session 事件保存 sessionId；headless profile 与补丁控制运行配置，本轮未完整证明阶段权限 | 新会话无 resume，恢复 --resume；普通 auto，最终 dontAsk 加 --deny * --disable-web-search |
 | 发现作用域 | 历史资料为项目 .agents/skills；帮助默认 ~/.codex/config.toml，支持覆盖/profile；本轮未刷新官方资料 | 插件资料 rank：项目 .dsh/skills 100、.agents/skills 200、自定义目录300、用户 .dsh/skills 400、.agents/skills 500、bundled 600；projectRoot 最近 .git 祖先，否则 cwd | 本地官方文档：cwd、repo、用户 .grok/skills，各层同时扫 .agents/skills，另有兼容目录与 skills paths |
@@ -99,7 +101,7 @@ entry-2674形成独立清单及统一矩阵 → 架构阶段保留两项skill议
 | 正文加载依据 | 历史资料按需读取，当前工作台完整加载未实验 | dsh-skill registry、dsh-skill-filesystem、dsh-tool-skill；插件资料描述实时读及无版本/缓存失效机制，不能据此证明会话 catalog 实时刷新 | TUI slash 与 headless 点名分开；prompt-file 点名能否完整加载未实验；references 与正文同目录为资料约定，相对路径未测 |
 | 证据通道 | JSONL、thread.started 与末条消息文件；skill 专用事件及正文来源可见性未知 | 版本、帮助、dump-config、app.asar 插件资料；项目 catalog/正文事件未验证 | inspect 可列来源；streaming-json 有 available_commands/tool_call，但工作台解析器只收 text/end/error，丢弃 catalog/正文事件；未使用 streaming-messages-json init.skills |
 
-报告来源均为 entry-2715：Codex call `b1abbfc4d79d40ee90332f60115ba21e`，检查时间2026-11-10 17:18:21 +08:00；DSH call `9b3acf153e2440bcb35cee192e85acc1`，报告未给精确检查时间，不补造；Grok call `0120b293d3754b02949bab37f59fdc92`，版本检查17:28:32、报告自记17:32:00 +08:00。DSH依据安装包 app.asar 的 filesystem 插件资料；Grok依据 `C:\Users\FHB\.grok\docs\user-guide\08-skills.md` 与 `22-permissions-and-safety.md`。以上为协作者报告的来源定位，汇总未再次运行命令独立复测。
+报告来源均为 entry-2715：Codex call `b1abbfc4d79d40ee90332f60115ba21e`，检查时间2026-11-10 17:18:21 +08:00；DSH call `9b3acf153e2440bcb35cee192e85acc1`，报告未给精确检查时间，不补造；Grok call `0120b293d3754b02949bab37f59fdc92`，版本检查17:28:32、报告自记17:32:00 +08:00。DSH依据安装包 app.asar 的 filesystem 插件资料；Grok依据安装包内技能及权限安全指南。以上为协作者报告的来源定位，汇总未再次运行命令独立复测。
 
 ### 修正、缺口与停止边界
 
@@ -176,15 +178,15 @@ web_chat.py:1717的build_agent_prompt按conversation_id查询工作台及消息�
 
 证据来源为entry-2736的Codex准备158abcd9db574c649b4ce4ca712b90bf、DSH准备572795f1e9a94c4f8da5dd663e0ca5d9、诊断1c3ecddaea894f9c890b7c18ecae7586、Grok补齐78fa3c3a51c34100851ad7f5c7eb8b13及文件准备12c0358ff3e549a3a5a9806f6b523f39。
 
-探测名称为shared-skill-probe-2736。审阅文件为[待安装SKILL.md](../../probe_evidence/shared-skill-probe-2736/SKILL.md)，目标路径为.agents/skills/shared-skill-probe-2736/SKILL.md。文件UTF-8、纯指令、仅name/description最小字段，quick_validate.py通过。SHA256为fc1bec6d7d18bc44512f62fa1d0c114a6d4190aa2700a8ed1fd07405e08c1cf6。统一提示为“请使用 shared-skill-probe-2736 完成探测任务。”独有规则仅在文件正文。
+探测名称为shared-skill-probe-2736。统一提示为“请使用 shared-skill-probe-2736 完成探测任务。”
 
-当前沙箱明确将.agents列为只读，文件留在允许位置，状态为未安装。用户可在具备目标路径写权限的PowerShell中，从项目根执行以下步骤，目标已存在时先停下核对，避免覆盖。
+当前沙箱明确将.agents列为只读，文件留在允许位置，状态为未安装。以下保留历史安装方法；<skill-source>须由使用者准备UTF8技能正文，<skill-install-dir>为使用者配置的安装目录，本仓库不提供原实验文件。用户可在具备目标路径写权限的PowerShell中，从项目根执行以下步骤，目标已存在时先停下核对，避免覆盖。
 
 ```powershell
-$probeTarget = '.agents/skills/shared-skill-probe-2736'
+$probeTarget = '<skill-install-dir>'
 if (Test-Path -LiteralPath $probeTarget) { throw 'Target exists; review before copying.' }
 New-Item -ItemType Directory -Path $probeTarget -ErrorAction Stop | Out-Null
-Copy-Item -LiteralPath 'probe_evidence/shared-skill-probe-2736/SKILL.md' -Destination "$probeTarget/SKILL.md" -ErrorAction Stop
+Copy-Item -LiteralPath '<skill-source>' -Destination "$probeTarget/SKILL.md" -ErrorAction Stop
 Get-FileHash -LiteralPath "$probeTarget/SKILL.md" -Algorithm SHA256
 ```
 
@@ -217,14 +219,13 @@ Get-FileHash -LiteralPath "$probeTarget/SKILL.md" -Algorithm SHA256
 |---|---|---|---|---|
 | Codex | 已验证，隔离会话 catalog 有项目来源 | 已验证为完整工具结果 | catalog 后 Get-Content；未观察专用加载事件 | 已验证 |
 | DSH | 未验证，缺隔离会话 catalog | 未验证，压缩持久会话仅头记录 | 实际读取路径不可观察 | 已验证 |
-| Grok 原实验 | 未验证 | 已观察普通读取审阅副本，完整正文未另行程序化验收 | 搜索后读取 probe_evidence 副本，存在退路污染 | 未通过，额外内容 |
+| Grok 原实验 | 未验证 | 已观察普通读取审阅副本，完整正文未另行程序化验收 | 搜索后普通读取正文，不能证明技能发现成功 | 未通过，额外内容 |
 | Grok 自主实验 | 未验证，system_prompt 与 prompt_context 无探测名 | 已观察 read_file 安装文件；完整正文未另行程序化验收，保持未验证 | list_dir、grep 后普通读取目标文件；机制加载未验证 | 未通过，额外内容 |
 
-证据入口：[Codex 审核](../../probe_evidence/codex-audit-result.json)、[DSH 审核](../../probe_evidence/dsh-audit-result.json)、[Grok 原审核](../../probe_evidence/grok-audit-result.json)、[Grok 自主提交引用](../../probe_evidence/grok-self-reference.json)、[Grok 自主审核](../../probe_evidence/grok-self-audit.json)。静态目标指纹仍为 `fc1bec6d7d18bc44512f62fa1d0c114a6d4190aa2700a8ed1fd07405e08c1cf6`；它标识目标文件，不代替会话加载证据。
 
 自主实验 conversation 为 `skill-probe-grok-self-93ab62ac966447cb`，消息 2775/2776，运行 completed、exit_confirmed=1，stop_reason=end_turn。Grok 提交引用记录四类历史/绑定提交前均零，数据库用户提示与统一原文精确一致，含中文和末尾句号。Codex 本轮通过只读数据库复核 run、程序、new、auto、cwd，并复读关联持久会话：system_prompt 与 prompt_context 均无探测名称，初始消息无独有内容，答复 104 字符且程序化精确匹配为 false。Grok 报告与持久事件记录支持普通检索后读取已安装文件，本轮无新增调用或 inspect。
 
-自主实验没有读取 probe_evidence 审阅副本，消除了原实验的这一污染来源；但普通文件检索取得正文仍不能证明项目 skill catalog 或按需加载机制成功。当前协作进程技能清单出现名称，不可代替隔离新会话证据。未见专用事件本身也不证明该机制不存在。
+普通文件检索取得正文仍不能证明项目 skill catalog 或按需加载机制成功。当前协作进程技能清单出现名称，不可代替隔离新会话证据。未见专用事件本身也不证明该机制不存在。
 
 ### 保留限制、异议及调整候选
 
@@ -391,6 +392,10 @@ must_follow：agent-discussion-spec1.2.0、design-decision-record-spec1.2.0、do
 
 | 时间 | 版本／议题 | 原状态或决定→新状态或决定 | 原因与证据 | 提出／决定者及来源 | 影响范围 |
 |---|---|---|---|---|---|
+| 2026-11-16 12:56:49 +08:00 | entry-3353／文档清理与正式化 | 旧表述→删除指定提及并关联正式记录 | 用户要求；[前置记录](BENCHMARK_RESTART_LESSONS_DISCUSSION.md)§13；Python本机时钟 | 用户授权；Codex实施 | 仅文档；作者静态检查，两方检视待完成 |
+| 2026-11-16 12:24:58 +08:00 | entry-3327／验收返修 | 首轮清理→补语义及交付链接检查 | 主题草稿§12；Python本机时钟 | Codex | 作者静态检查；返修版本待独立复核 |
+| 2026-11-16 12:24:09 +08:00 | entry-3327／语义返修 | 首轮替换→修正示例及历史语境 | 主题草稿§12；Python本机时钟 | Codex | 仅文档静态检查，独立复核待完成 |
+| 2026-11-16 12:15:57 +08:00 | entry-3327／交付引用清理 | 具体本地定位→可交付摘要或通用占位符 | 用户要求；主题草稿§12；Python本机时钟 | Codex | 保留历史事实与版本范围；作者检查，待独立复核 |
 | 2026-11-15 23:21:27 +08:00 | entry-3244／历史倒序整理 | 原历史展示→最新在前、文末六列 | 用户最新要求；合并前置稿见DOCUMENT_LIFECYCLE_HISTORY_DISCUSSION.md§6；时间来源Python本机时钟 | 用户；Codex整理 | 仅历史结构与排序，旧证据和批准边界保留；待两端检视 |
 | entry-2855，精确时间未另行记录 | 原历史阶段 | 追加长期承载形式共识提案、四条候选内容、入口关系及场景纸面走查 | 时间：entry-2855，精确时间未另行记录；变更内容：追加长期承载形式共识提案、四条候选内容、入口关系及场景纸面走查；依据：本节列出的三端任务反馈 | 原记录所列来源 | 原范围及验证边界保留 |
 | 2026-11-10 20:12:07 +08:00 | 原历史阶段 | 汇总三端复盘、后期状态、操作约定提案及异议，修正信任恢复说明 | 时间：2026-11-10 20:12:07 +08:00；变更内容：汇总三端复盘、后期状态、操作约定提案及异议，修正信任恢复说明；依据：entry-2848 基线与两端反馈 | 原记录所列来源 | 原范围及验证边界保留 |

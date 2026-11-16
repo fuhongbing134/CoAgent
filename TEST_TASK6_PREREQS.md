@@ -1,10 +1,12 @@
 # 任务 6：生产释放前提补充验证
 
+示例说明：`<project-root>`为克隆后的项目根目录绝对路径；`<python>`为已安装Python可执行文件的完整路径。占位符不能原样执行。
+
 当前仅交付脚本，尚未执行。先由 DeepSeek 审核，再由用户在普通 PowerShell 手动运行。不修改生产代码、数据库或工作台占用。
 
 ## 运行前
 
-- Windows 10/11，Python 为 `E:\Python\python.exe`，无需第三方包。
+- Windows 10/11，Python 为 `<python>`，无需第三方包。
 - 使用普通 PowerShell，不在 Agent 沙箱中运行；先不提权。管理员身份会改变访问权限观察，不能用提权结果代替普通用户结果。
 - 脚本不 import 生产模块，也不 import 旧实验脚本；需要的 ctypes 声明为独立源码副本。
 - 写入仅限新建的系统临时目录。请等审核通过后再运行。
@@ -14,11 +16,11 @@
 下面包含自动前置检查，路径缺失会停止：
 
 ```powershell
-Set-Location -LiteralPath 'C:\Users\FHB\Documents\Codex\agent-lab\step1'
-if (-not (Test-Path -LiteralPath 'E:\Python\python.exe')) { throw 'Python path missing' }
+Set-Location -LiteralPath '<project-root>'
+if (-not (Test-Path -LiteralPath '<python>')) { throw 'Python path missing' }
 if (-not (Test-Path -LiteralPath '.\verify_task6_prereqs.py')) { throw 'Probe script missing' }
 $task6PrereqLog = Join-Path $env:TEMP ('task6-prereqs-console-' + (Get-Date -Format 'yyyyMMdd-HHmmss') + '.txt')
-& 'E:\Python\python.exe' -B -u '.\verify_task6_prereqs.py' 2>&1 | Tee-Object -FilePath $task6PrereqLog
+& '<python>' -B -u '.\verify_task6_prereqs.py' 2>&1 | Tee-Object -FilePath $task6PrereqLog
 $task6PrereqExit = $LASTEXITCODE
 Write-Host "Python exit code: $task6PrereqExit"
 Write-Host "Console log: $task6PrereqLog"
@@ -116,3 +118,10 @@ RESULT exit_code=1 production_verified=false report=...
 - [ProcessIdToSessionId：取得进程会话编号](https://learn.microsoft.com/en-us/windows/win32/api/processthreadsapi/nf-processthreadsapi-processidtosessionid)
 
 结果分析后再决定下一步。实验路径通过不等于三项生产前置全部通过，更不等于任务 6 已实施。
+
+## 变更历史
+
+| 时间 | 版本／议题 | 原状态或决定→新状态或决定 | 原因与证据 | 提出／决定者及来源 | 影响范围 |
+|---|---|---|---|---|---|
+| 2026-11-16 12:24:09 +08:00 | entry-3327／语义返修 | 首轮替换→修正示例及历史语境 | 主题草稿§12；Python本机时钟 | Codex | 仅文档静态检查，独立复核待完成 |
+| 2026-11-16 12:15:57 +08:00 | entry-3327／交付引用清理 | 具体本地定位→可交付摘要或通用占位符 | 用户要求；主题草稿§12；Python本机时钟 | Codex | 保留历史事实与版本范围；作者检查，待独立复核 |

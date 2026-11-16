@@ -1,5 +1,7 @@
 # 任务 6A 设计方案（遗留占用展示 + 保守阻断）
 
+示例说明：`<python>`为已安装Python可执行文件的完整路径。占位符不能原样执行。
+
 > 状态：设计定稿（经两轮复审收敛），**已有部分实现，完整验收待核实**。现有 execution_inspection.py、inspect_execution.py 及 execution_tracking.py 接入提供实现证据；本次未逐条验收，不据此宣称全部完成。
 > 状态更新注记（2026-10-28 19:49:15 +08:00）：原文为“尚未实施。本文只陈述设计，不含任何已通过实现的验收结果”，保留为设计定稿时判断。P0-2_VERIFY_LOG.md 的“任务 5 数据层完成”属于 session 任务，不作为 6A 数据层完成的依据；6A 与 6B 边界保持不变。
 > 本文是任务 6 拆分为 6A / 6B 后的 6A 部分；6B（遗留占用的解除与恢复使用）另列，不在此范围。
@@ -84,8 +86,8 @@
 独立只读命令，避免导入 `web_chat.py` 触发应用初始化。拟定用法：
 
 ```powershell
-& 'E:\Python\python.exe' -B '.\inspect_execution.py' --db '.\agent_bridge.db'
-& 'E:\Python\python.exe' -B '.\inspect_execution.py' --db '.\agent_bridge.db' --agent codex --conversation <对话ID> --json
+& '<python>' -B '.\inspect_execution.py' --db '.\agent_bridge.db'
+& '<python>' -B '.\inspect_execution.py' --db '.\agent_bridge.db' --agent codex --conversation <对话ID> --json
 ```
 
 设计约束：
@@ -201,3 +203,10 @@ session 展示同时读取旧 `workbench_sessions/workbench_agent_sessions`；`S
 - 6A 完成 ≠ 任务 6 整体完成。
 - 6A 不要求先切换任务 5 的 resolver；必须同时理解当前兼容路径与统一 session 表，保持 resolver 原有设置。
 - 「无关会话不受影响」的口径 = 没有共享冲突绑定、且满足现有准入规则的执行域不新增阻断，不保证所有标 ready 的会话一定可运行。
+
+## 变更历史
+
+| 时间 | 版本／议题 | 原状态或决定→新状态或决定 | 原因与证据 | 提出／决定者及来源 | 影响范围 |
+|---|---|---|---|---|---|
+| 2026-11-16 12:24:09 +08:00 | entry-3327／语义返修 | 首轮替换→修正示例及历史语境 | 主题草稿§12；Python本机时钟 | Codex | 仅文档静态检查，独立复核待完成 |
+| 2026-11-16 12:15:57 +08:00 | entry-3327／交付引用清理 | 具体本地定位→可交付摘要或通用占位符 | 用户要求；主题草稿§12；Python本机时钟 | Codex | 保留历史事实与版本范围；作者检查，待独立复核 |

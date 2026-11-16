@@ -101,7 +101,7 @@
 
 ### 7. 前端测试 DOM mock 补齐 Node.before
 
-当前处置（2026-11-10，entry-2647）。原触发问题已随 UI 简化移除 `messagesNode.before()` 调用而消除，当前 `collaboration_ui.js` 使用 `taskHost.append(collaborationRoot)`。用户报告的后续专项 10 项及全套 167 项回归通过（1 跳过），依据见[UI 设计第 8 节](docs/UI_SIMPLIFICATION_DESIGN.md#8-实施结果风险与剩余缺口)。本次仅核对文档与源码，未重跑测试。原补齐 mock 的独立修复方案已由调用移除方案取代，以下暂缓状态、失败证据及验收要求保留为登记时历史。
+当前处置（2026-11-10，entry-2647）。原触发问题已随 UI 简化移除 `messagesNode.before()` 调用而消除，当前 `collaboration_ui.js` 使用 `taskHost.append(collaborationRoot)`。用户报告的后续专项 10 项及全套 167 项回归通过（1 跳过），依据见[UI 设计第 8 节](docs/design/UI_SIMPLIFICATION_DESIGN.md#8-实施结果风险与剩余缺口)。本次仅核对文档与源码，未重跑测试。原补齐 mock 的独立修复方案已由调用移除方案取代，以下暂缓状态、失败证据及验收要求保留为登记时历史。
 
 - **需求**：修复 `test_frontend.cjs` 的 DOM mock 缺少 `before()`，导致 `collaboration_ui.js:5` 的 `messagesNode.before(collaborationRoot)` 抛错、`test_capabilities.FrontendTests.test_polling_regressions` 失败的问题。
 - **状态**：已确认但暂缓（独立修复；暂缓对合入门槛的影响尚待确认）
@@ -110,7 +110,7 @@
 - **当前证据与处置**：用户 2026-10-29 全套运行 167 项：165 通过、1 失败、1 跳过，唯一失败为此项。DeepSeek 判为既有独立问题、本次未改前端，建议不阻塞失败可见性；未在旧基线上重跑确认历史起点，登记待办不等于用户已批准豁免失败检查。
 - **启动条件**：安排独立前端测试修复时；如合入前需消除该失败，则优先处理，或由负责人提交明确门槛处置供用户裁决。
 - **验收标准**：补齐符合调用语义的 DOM mock，保持既有轮询断言有效；`node test_frontend.cjs` 与 `python -m unittest test_capabilities` 通过，并复核全套结果，不以删除断言或跳过用例制造通过。
-- **关联**：[失败可见性设计 §8](docs/FAILURE_VISIBILITY_DESIGN.md#8-实施与验证结果)、`collaboration_ui.js`、`test_frontend.cjs`、`test_capabilities.py`；合入门槛见 `specs/CODE_REVIEW_SPEC.md` §10。
+- **关联**：[失败可见性设计 §8](docs/design/FAILURE_VISIBILITY_DESIGN.md#8-实施与验证结果)、`collaboration_ui.js`、`test_frontend.cjs`、`test_capabilities.py`；合入门槛见 `specs/CODE_REVIEW_SPEC.md` §10。
 
 ### 8. owner 等待或阻塞回复的空计划兼容
 
@@ -123,7 +123,7 @@
 - **待修复方案（收窄版 A+B）**：仅兼容 owner 的 waiting_user/blocked 在计划结构、owner_id/final_responder_id 身份合法且与当前计划一致时携带空计划，视为「无计划更新」、保留旧任务；不能直接丢掉空 plan 而吞掉角色篡改。解析层与归一化层采用一致规则，接收事务内基于最新计划再查；提示明确无更新时优先省略 plan。不扩大 entry/collaborator/final/continue_work/request_collaboration 的现有兼容范围，保留 completed 空计划的既有规则。
 - **启动条件**：用户决定启动修复后，先把收敛方案写入现有调度设计记录，再实施代码、独立 review 与回归；本条仅登记待办，不代替设计决策记录或验收。
 - **验收标准**：从真实解析入口经服务到事务接收覆盖 waiting_user/blocked 空计划与省略计划等价，旧任务保留且不重执行；篡改角色仍拒绝，缺 questions/blocked_reason 仍拒绝；completed 兼容及其他角色、状态和 final_delivery 边界不退化。不自动重放或改写历史失败 job。
-- **关联**：[调度计划接收设计](docs/COLLABORATION_DISPATCH_DESIGN.md)、`collaboration_protocol.py` 的 `validate_payload`/`normalize_owner_plan`、`collaboration_service.py` 的 `call`（先解析再归一化）、`collaboration_lifecycle.py` 的事务接收、`test_issue8.py`；与失败可见性验收分开跟踪。
+- **关联**：[调度计划接收设计](docs/design/COLLABORATION_DISPATCH_DESIGN.md)、`collaboration_protocol.py` 的 `validate_payload`/`normalize_owner_plan`、`collaboration_service.py` 的 `call`（先解析再归一化）、`collaboration_lifecycle.py` 的事务接收、`test_issue8.py`；与失败可见性验收分开跟踪。
 
 ### 9. owner 协作协议 status 与邀请不一致（混合计划误用 continue_work 夹带 @邀请）
 
@@ -135,6 +135,12 @@
 - **当前替代方式**：owner 严格区分——`continue_work` 不写邀请行；含他人任务用 `request_collaboration` + 末行 `@名称`。
 - **启动条件**：安排协作协议校验或 DSH 回复自检修复时。
 - **验收标准**：owner 混合计划正确使用 `request_collaboration`、`continue_work` 不带邀请、调度器按 status 正确分发。
-- **关联**：`AGENT_DISCUSSION_SPEC.md`、`collaboration_protocol.py`、`docs/COLLABORATION_DISPATCH_DESIGN.md`
+- **关联**：`AGENT_DISCUSSION_SPEC.md`、`collaboration_protocol.py`、`docs/design/COLLABORATION_DISPATCH_DESIGN.md`
 
 > 注：P0-2 的后续实施项（实例锁、生产迁移、session 条件写回、工作区身份、统一 Adapter 等）由 `P0-2_VERIFY_LOG.md` 追踪，不在本 backlog。
+
+## 变更历史
+
+| 时间 | 版本／议题 | 原状态或决定→新状态或决定 | 原因与证据 | 提出／决定者及来源 | 影响范围 |
+|---|---|---|---|---|---|
+| 2026-11-16 12:24:58 +08:00 | entry-3327／验收返修 | 首轮清理→补语义及交付链接检查 | 主题草稿§12；Python本机时钟 | Codex | 作者静态检查；返修版本待独立复核 |

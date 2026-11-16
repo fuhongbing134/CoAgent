@@ -1,27 +1,42 @@
 # 工作台并发压测实施与证据
 
-文档状态：执行记录，待独立检视。运行状态：正式主矩阵执行中，不能据此声称完整设计已经验收。
+示例说明：`<output-dir>`为该命令创建的全新输出目录，不能指向历史证据。占位符不能原样执行。
+
+> 当前状态：废案（2026-11-16 11:25:17 +08:00，entry-3310用户决定）。旧压测方案、脚本和结果不作为新基线；原执行指令与“运行中／下一步执行”均为历史时点表述，已失效，不构成恢复运行授权。旧正文及未完成项保留，不追认完整验收。
+> 原路径：`docs/design/CONCURRENCY_BENCHMARK_RESULTS.md`。归档入口：[README.md](README.md)；讨论及迁移依据：[BENCHMARK_RESTART_LESSONS_DISCUSSION.md](../../BENCHMARK_RESTART_LESSONS_DISCUSSION.md)。归档文档及工具见入口；旧实验未重新验证。
+
+## 历史原文（保留当时语境）
+
+文档状态：执行记录，待独立检视。运行状态：原主矩阵执行中为历史记录；entry-3284本轮无模型预检通过，正式主矩阵未运行，完整验收尚未完成。
 
 依据：[已决定设计](CONCURRENCY_BENCHMARK_DESIGN.md)、entry-3049 用户先讨论、落文档、最后实测的授权。作者 Codex；独立实现检视与数据复核分别由既定 Grok、DeepSeek Harness 任务承担，本记录不是作者自批。
 
+## entry-3284 本轮预检
+
+执行前留稿见[预检讨论](CONCURRENCY_PREFLIGHT_DISCUSSION.md)。2026-11-16 10:43:45 +08:00记录，时钟来源Python本机时钟。命令与停止条件见留稿。
+
+本轮结果（2026-11-16 10:46:34 +08:00，Python本机时钟）：4项单测通过；独立正确性2/2、冒烟正确性2/2及负载12/12通过，负载每组20、总240，audit逐消息/run对账12组240条通过。所有执行命令退出0。summary先保存summary.before-report.json再report重算，JSON一致。所有被1秒轮询观察到的父子PID均已退出，见remaining_pids=[]；短于采样间隔的进程可能未观察到，不冒称穷尽进程生命周期。资源样本128条，系统最小可用内存1711980544字节，所观察进程树RSS合计峰值216920064字节（非精确峰值），CPU为累计秒值，可据相邻样本求差；DB/WAL合计大小有采样。采样不是工具内建资源验收。
+
+延迟仍为发送至终态观察，吞吐含排空。无真实模型调用，无正式1000样本主矩阵，C1—C17覆盖与次数、缺失性能锚点和分层指标仍未补齐。未实测超时取消树清理路径，正常退出证据不能代替该项。下一步交负责人安排正式主矩阵及覆盖缺口；无业务代码修改、未提交推送。
+
 ## 变更与运行方式
 
-新增 [benchmark_concurrency.py](../../benchmark_concurrency.py) 与 [test_benchmark_concurrency.py](../../test_benchmark_concurrency.py)。未修改生产代码、数据库结构、调度或认证。架构现状与调用流程中的生产事实没有变化，无需改图；工具及证据范围在本主题记录。
+新增 [benchmark_concurrency.py](tools/benchmark_concurrency.py) 与 [test_benchmark_concurrency.py](tools/test_benchmark_concurrency.py)。未修改生产代码、数据库结构、调度或认证。架构现状与调用流程中的生产事实没有变化，无需改图；工具及证据范围在本主题记录。
 
 ```powershell
 python -m unittest test_benchmark_concurrency -v
-python benchmark_concurrency.py run --output probe_evidence/concurrency-new --correctness-only
-python benchmark_concurrency.py run --output probe_evidence/concurrency-new-full --samples 1000 --warmup 100 --rounds 3
-python benchmark_concurrency.py report --output probe_evidence/concurrency-formal
+python benchmark_concurrency.py run --output <output-dir> --correctness-only
+python benchmark_concurrency.py run --output <output-dir> --samples 1000 --warmup 100 --rounds 3
+python benchmark_concurrency.py report --output <output-dir>
 ```
 
-`run` 要求输出目录不存在，且位于项目子目录；每场景独占创建隔离库，先设置 `AGENT_BRIDGE_DB` 再导入应用。没有“指定已有数据库”的参数。拒绝链接目录和数据库硬链接。`report` 读取原始 JSONL 并更新 summary，不访问数据库。原始文件位于已忽略的 `probe_evidence/`，交付时保留本地文件供检视，未提交或推送。
+`run` 要求输出目录不存在，且位于项目子目录；每场景独占创建隔离库，先设置 `AGENT_BRIDGE_DB` 再导入应用。没有“指定已有数据库”的参数。拒绝链接目录和数据库硬链接。`report` 读取原始 JSONL 并更新 summary，不访问数据库。
 
 真实 `startup_server(0)`、HTTP `/api/messages`、准入、默认 legacy session 选择、SQLite WAL、消息写入、释放和实例锁均保留。仅替换 worker 与命令发现；`ManagedProcess.run` 被设为禁止调用。实际CLI worker内部的prompt组装、输出解析、子进程及网络均不计入本基线。脚本的 `confirmed` 是注入值，不能当真实 CLI 退出证据。
 
 ## 实际环境与版本
 
-Python 3.13.7，SQLite 3.50.4，Windows；完整 OS/处理器、HEAD、分支、工具 SHA256、tracked diff SHA256 和参数见 [manifest.json](../../probe_evidence/concurrency-formal/manifest.json)。各场景另有 `version.json`、`config.json`、`result.json`、`execution.log`、`events.jsonl` 与 `samples.jsonl`。分支 `perf/ConcurrencyTest`；不声称该分支由本端成功创建。
+Python 3.13.7，SQLite 3.50.4，Windows；分支 `perf/ConcurrencyTest`；不声称该分支由本端成功创建。
 
 当前 CPU/峰值内存定时采样未实现，内存总量未采集；不能作资源容量结论。未采集环境变量全集或凭据。
 
@@ -72,3 +87,15 @@ Python 3.13.7，SQLite 3.50.4，Windows；完整 OS/处理器、HEAD、分支、
 本轮真实模型CLI调用0次，token/费用unknown。既有“最多9次进程×120s”不是金额上限，也不能限制CLI内部模型轮数，故L4保持待运行。若继续，需要用户选择具体预算：只做一个指定后端至多3次进程，或三后端至多9次进程，并给可执行的模型/费用上限；不能把本轮模拟证据作为真实CLI安全结论。
 
 作者自查不替代独立批准；未提交、推送或合入。完整设计覆盖尚未完成，必要独立检视与补齐项仍为交付门槛。
+
+## 变更历史
+
+| 时间 | 版本／议题 | 原状态或决定→新状态或决定 | 原因与证据 | 提出／决定者及来源 | 影响范围 |
+|---|---|---|---|---|---|
+| 2026-11-16 13:13:25 +08:00 | entry-3353／G-N1与G-N2收尾 | 两方发现项→作者修正并明确版本范围 | Grok有效检视3f4a86ec1e854356b1c5776a37054e9e；[处理记录](../../BENCHMARK_RESTART_LESSONS_DISCUSSION.md)§13；Python本机时钟 | Codex按负责人决定处理 | 仅文档；末次修订未另行独立复查，行为效果未验证 |
+| 2026-11-16 13:03:01 +08:00 | entry-3353／N1返修 | 检视发现漏项→删除并补查 | DeepSeek调用685c355e87914e79b46f0664684c5bf0；[返修记录](../../BENCHMARK_RESTART_LESSONS_DISCUSSION.md)§13；Python本机时钟 | Codex按负责人决定修正 | 作者检查，Grok检视尚待；效果未验证 |
+| 2026-11-16 12:56:49 +08:00 | entry-3353／文档清理与正式化 | 旧表述→删除指定提及并关联正式记录 | 用户要求；[前置记录](../../BENCHMARK_RESTART_LESSONS_DISCUSSION.md)§13；Python本机时钟 | 用户授权；Codex实施 | 仅文档；作者静态检查，两方检视待完成 |
+| 2026-11-16 12:24:09 +08:00 | entry-3327／语义返修 | 首轮替换→修正示例及历史语境 | 主题草稿§12；Python本机时钟 | Codex | 仅文档静态检查，独立复核待完成 |
+| 2026-11-16 12:15:57 +08:00 | entry-3327／交付引用清理 | 具体本地定位→可交付摘要或通用占位符 | 用户要求；主题草稿§12；Python本机时钟 | Codex | 保留历史事实与版本范围；作者检查，待独立复核 |
+| 2026-11-16 11:25:17 +08:00 | entry-3310／旧压测废案 | 原活动位置→废案，原执行指令失效 | entry-3310用户归档授权；前置留稿BENCHMARK_RESTART_LESSONS_DISCUSSION.md；Python本机时钟 | 用户；Codex实施 | 仅归档及引用同步，不恢复测试；教训待讨论 |
+| 2026-11-16 10:46:34 +08:00 | entry-3284／预检（留稿0.2） | 预检待执行→无模型预检通过 | 本轮日志与audit；Python本机时钟 | Codex | 仅预检，完整验收未完成 |

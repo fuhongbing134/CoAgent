@@ -1,10 +1,15 @@
 # 工作台并发压测设计
 
+> 当前状态：废案（2026-11-16 11:25:17 +08:00，entry-3310用户决定）。旧压测方案、脚本和结果不作为新基线；原执行指令与“运行中／下一步执行”均为历史时点表述，已失效，不构成恢复运行授权。旧正文及未完成项保留，不追认完整验收。
+> 原路径：`docs/design/CONCURRENCY_BENCHMARK_DESIGN.md`。归档入口：[README.md](README.md)；讨论及迁移依据：[BENCHMARK_RESTART_LESSONS_DISCUSSION.md](../../BENCHMARK_RESTART_LESSONS_DISCUSSION.md)。归档文档及工具见入口；旧实验未重新验证。
+
+## 历史原文（保留当时语境）
+
 文档状态：已决定（entry-3049两端复核及既有实施授权）。方案状态：进入实施；验证覆盖以第11节实际结果为准。
 
 需求来源：entry-3049，用户要求“新开一个分支，然后和其他两个agent讨论……尽可能详细一点，先讨论，然后落文档，最后再实际测试”。负责人及最终答复者 Codex；正确性讨论 Grok，测量讨论 DeepSeek Harness。当前分支 `perf/ConcurrencyTest`（本轮直接核对）；准备阶段创建分支曾因权限失败，当时仍为 main；不能将后续观察写成当时创建成功。
 
-关联：[设计索引](README.md)、[架构现状](../architecture/ARCHITECTURE.md)、[调用流程](../architecture/WORKBENCH_CALL_FLOW.md)、[P0-2复盘](../../postmortem/P0-2_POSTMORTEM.md)。遵循 [执行规范](../../specs/TASK_EXECUTION_SPEC.md) 1.0.0、[讨论规范](../../specs/AGENT_DISCUSSION_SPEC.md) 1.2.0、[设计留痕规范](../../specs/DESIGN_DECISION_RECORD_SPEC.md) 1.2.0、[文档规范](../../specs/DOCUMENT_MANAGEMENT_SPEC.md) 1.2.0；实施阶段追加编码检视规范。
+关联：[设计索引](../../../design/README.md)、[架构现状](../../../architecture/ARCHITECTURE.md)、[调用流程](../../../architecture/WORKBENCH_CALL_FLOW.md)、[P0-2复盘](../../../../postmortem/P0-2_POSTMORTEM.md)。遵循 [执行规范](../../../../specs/TASK_EXECUTION_SPEC.md) 1.0.0、[讨论规范](../../../../specs/AGENT_DISCUSSION_SPEC.md) 1.2.0、[设计留痕规范](../../../../specs/DESIGN_DECISION_RECORD_SPEC.md) 1.2.0、[文档规范](../../../../specs/DOCUMENT_MANAGEMENT_SPEC.md) 1.2.0；实施阶段追加编码检视规范。
 
 ## 1. 用户基线与验收范围
 
@@ -136,6 +141,8 @@ finally释放测试Event、关闭HTTP、限时join、终止本次明确记录的
 
 | 时间 | 版本／议题 | 原状态或决定→新状态或决定 | 原因与证据 | 提出／决定者及来源 | 影响范围 |
 |---|---|---|---|---|---|
+| 2026-11-16 12:56:49 +08:00 | entry-3353／文档清理与正式化 | 旧表述→删除指定提及并关联正式记录 | 用户要求；[前置记录](../../BENCHMARK_RESTART_LESSONS_DISCUSSION.md)§13；Python本机时钟 | 用户授权；Codex实施 | 仅文档；作者静态检查，两方检视待完成 |
+| 2026-11-16 11:25:17 +08:00 | entry-3310／旧压测废案 | 原活动位置→废案，原执行指令失效 | entry-3310用户归档授权；前置留稿BENCHMARK_RESTART_LESSONS_DISCUSSION.md；Python本机时钟 | 用户；Codex实施 | 仅归档及引用同步，不恢复测试；教训待讨论 |
 | 2026-11-15 23:21:27 +08:00 | entry-3244／历史倒序整理 | 原历史展示→最新在前、文末六列 | 用户最新要求；合并前置稿见DOCUMENT_LIFECYCLE_HISTORY_DISCUSSION.md§6；时间来源Python本机时钟 | 用户；Codex整理 | 仅历史结构与排序，旧证据和批准边界保留；待两端检视 |
 | 事件时间未确认（原记录未载明） | 原历史阶段 | 沿用原记录 | - entry-3049实施：两端复核后明确C13第二域not_started释放、C14/C17同库例外、C6附加reserved断言、C1硬条件及p/L3/L4语义；新增工具开始实测。原完整覆盖计划保留，实际部分覆盖及差异在证据文档披露，未视为已批准缩减。 | 原记录所列来源 | 原范围及验证边界保留 |
 | 事件时间未确认（原记录未载明） | 原历史阶段 | 沿用原记录 | - entry-3049：用户授权分支和三端讨论后落文档再实际测试；Grok补正确性矩阵，DeepSeek补测量协议，Codex纠正区间、并发及尾部样本口径，形成本草案待独立复核。现状证据与计划分开，尚无实测结果。 | 原记录所列来源 | 原范围及验证边界保留 |

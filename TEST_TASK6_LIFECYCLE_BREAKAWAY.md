@@ -1,5 +1,7 @@
 # 任务 6：kill-on-close 生命周期与 breakaway 针对性验证
 
+示例说明：`<project-root>`为克隆后的项目根目录绝对路径；`<python>`为已安装Python可执行文件的完整路径。占位符不能原样执行。
+
 状态：脚本仅已编写，未执行。先由 DeepSeek 审核，再在普通 PowerShell 手动运行。两份脚本各自 standalone，不 import 生产模块、旧脚本或彼此；不访问生产数据库、不启动真实 Agent。
 
 ## 先说明要验证什么
@@ -11,21 +13,21 @@
 
 ## 运行环境与命令
 
-Windows 10/11，普通 PowerShell，`E:\Python\python.exe`。无需安装包；先不使用管理员权限，提权会改变观察结果。请等审核通过后运行。
+Windows 10/11，普通 PowerShell，`<python>`。无需安装包；先不使用管理员权限，提权会改变观察结果。请等审核通过后运行。
 
 复制以下命令顺序执行两个脚本；第二项即使第一项非零也继续，分别保存退出码：
 
 ```powershell
-Set-Location -LiteralPath 'C:\Users\FHB\Documents\Codex\agent-lab\step1'
-if (-not (Test-Path -LiteralPath 'E:\Python\python.exe')) { throw 'Python missing' }
+Set-Location -LiteralPath '<project-root>'
+if (-not (Test-Path -LiteralPath '<python>')) { throw 'Python missing' }
 if (-not (Test-Path -LiteralPath '.\verify_task6_job_lifecycle.py')) { throw 'Lifecycle script missing' }
 if (-not (Test-Path -LiteralPath '.\verify_task6_breakaway.py')) { throw 'Breakaway script missing' }
 $task6FocusedStamp = Get-Date -Format 'yyyyMMdd-HHmmss'
 $task6LifecycleLog = Join-Path $env:TEMP ('task6-lifecycle-' + $task6FocusedStamp + '.txt')
-& 'E:\Python\python.exe' -B -u '.\verify_task6_job_lifecycle.py' 2>&1 | Tee-Object -FilePath $task6LifecycleLog
+& '<python>' -B -u '.\verify_task6_job_lifecycle.py' 2>&1 | Tee-Object -FilePath $task6LifecycleLog
 $task6LifecycleExit = $LASTEXITCODE
 $task6BreakawayLog = Join-Path $env:TEMP ('task6-breakaway-' + $task6FocusedStamp + '.txt')
-& 'E:\Python\python.exe' -B -u '.\verify_task6_breakaway.py' 2>&1 | Tee-Object -FilePath $task6BreakawayLog
+& '<python>' -B -u '.\verify_task6_breakaway.py' 2>&1 | Tee-Object -FilePath $task6BreakawayLog
 $task6BreakawayExit = $LASTEXITCODE
 Write-Host "Lifecycle exit: $task6LifecycleExit ; log: $task6LifecycleLog"
 Write-Host "Breakaway exit: $task6BreakawayExit ; log: $task6BreakawayLog"
@@ -87,3 +89,10 @@ Write-Host "Breakaway exit: $task6BreakawayExit ; log: $task6BreakawayLog"
 这两个实验不会建立配置不可变性，也不修复生产恢复判定。即使实验能依据已知脱离证据拒绝，真实恢复时未必拥有可信的脱离历史；创建时记录的初始 flags 不能证明执行期间从未开启过 breakaway。上下文守卫、权限边界和最终支持范围仍需收敛，任务 6 未实施。
 
 官方依据：[CreateJobObjectW 生命周期](https://learn.microsoft.com/en-us/windows/win32/api/jobapi2/nf-jobapi2-createjobobjectw)、[Job Objects 后代继承与 breakaway](https://learn.microsoft.com/en-us/windows/win32/procthread/job-objects)。
+
+## 变更历史
+
+| 时间 | 版本／议题 | 原状态或决定→新状态或决定 | 原因与证据 | 提出／决定者及来源 | 影响范围 |
+|---|---|---|---|---|---|
+| 2026-11-16 12:24:09 +08:00 | entry-3327／语义返修 | 首轮替换→修正示例及历史语境 | 主题草稿§12；Python本机时钟 | Codex | 仅文档静态检查，独立复核待完成 |
+| 2026-11-16 12:15:57 +08:00 | entry-3327／交付引用清理 | 具体本地定位→可交付摘要或通用占位符 | 用户要求；主题草稿§12；Python本机时钟 | Codex | 保留历史事实与版本范围；作者检查，待独立复核 |

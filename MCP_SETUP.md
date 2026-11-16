@@ -1,5 +1,7 @@
 # Codex、DeepSeek Harness 与 Grok 接入说明
 
+示例说明：`<project-root>`为克隆后的项目根目录绝对路径；`<database-file>`为与MCP服务相同的SQLite文件完整路径，首次启动由服务初始化；TOML示例使用正斜杠；YAML示例的双引号字符串内，反斜杠写成两个反斜杠以转义，替换项目根目录时也须按此规则转义。占位符不能原样执行。
+
 ## Grok Build 接入补充（2026-11-01）
 
 工作台调用 Grok CLI 与 MCP 消息桥是两条链路；CLI存在不证明桥接已登记。
@@ -10,9 +12,9 @@ Grok 启动命令可用 `GROK_CLI` 指定，否则检查PATH和用户目录 `.gr
 
 ```toml
 [mcp_servers.agent_bridge]
-command = "C:/path/to/CoAgent/.venv/Scripts/python.exe"
-args = ["C:/path/to/CoAgent/agent_bridge.py"]
-env = { AGENT_BRIDGE_AGENT_ID = "grok", AGENT_BRIDGE_DB = "C:/path/to/CoAgent/agent_bridge.db" }
+command = "<project-root>/.venv/Scripts/python.exe"
+args = ["<project-root>/agent_bridge.py"]
+env = { AGENT_BRIDGE_AGENT_ID = "grok", AGENT_BRIDGE_DB = "<project-root>/agent_bridge.db" }
 ```
 
 确认本机路径后由用户配置；本轮不写用户配置，不查询真实登记状态。
@@ -39,14 +41,14 @@ python -m venv .venv
 ```powershell
 codex mcp add agent-bridge `
   --env "AGENT_BRIDGE_AGENT_ID=codex" `
-  --env "AGENT_BRIDGE_DB=C:/path/to/CoAgent\agent_bridge.db" `
-  -- "C:/path/to/CoAgent\.venv\Scripts\python.exe" "C:/path/to/CoAgent\agent_bridge.py"
+  --env "AGENT_BRIDGE_DB=<project-root>\agent_bridge.db" `
+  -- "<project-root>\.venv\Scripts\python.exe" "<project-root>\agent_bridge.py"
 ```
 
 上面命令里的 Python 可执行文件应为：
 
 ```text
-C:/path/to/CoAgent\.venv\Scripts\python.exe
+<project-root>\.venv\Scripts\python.exe
 ```
 
 添加后重启 Codex 客户端，让它重新载入 MCP 配置。
@@ -68,13 +70,13 @@ C:/path/to/CoAgent\.venv\Scripts\python.exe
       config:
         serverName: agent_bridge
         transport: stdio
-        command: "C:/path/to/CoAgent\\.venv\\Scripts\\python.exe"
+        command: "<project-root>\\.venv\\Scripts\\python.exe"
         args:
-          - "C:/path/to/CoAgent\\agent_bridge.py"
+          - "<project-root>\\agent_bridge.py"
         env:
           AGENT_BRIDGE_AGENT_ID: deepseek-harness
-          AGENT_BRIDGE_DB: "C:/path/to/CoAgent\\agent_bridge.db"
-        cwd: "C:/path/to/CoAgent"
+          AGENT_BRIDGE_DB: "<project-root>\\agent_bridge.db"
+        cwd: "<project-root>"
 ```
 
 如果配置项报 `UNKNOWN_PLUGIN` 或类似“找不到 `@deepseek-ai/dsh-mcp-client`”的错误，需要先通过 DeepSeek Harness 的插件管理器安装这个官方 MCP Client 插件，再重新加载桌面 profile。配置 YAML 中已有其他内容时，只追加该条目，不要覆盖原有内容。
@@ -135,7 +137,7 @@ http://127.0.0.1:8765
 页面每 3 秒刷新一次。思考中的回复下可停止该 Agent，发送按钮旁的按钮可停止所有正在运行的 Agent；关闭工作台会清理已跟踪运行，不保证所有外部派生进程已退出。按 `Ctrl+C` 停止服务。默认使用本目录中的 `agent_bridge.db`；如果 MCP 服务配置了其他 `AGENT_BRIDGE_DB` 路径，启动网页前也要在当前 PowerShell 设置同一个值：
 
 ```powershell
-$env:AGENT_BRIDGE_DB = "C:\path\to\agent_bridge.db"
+$env:AGENT_BRIDGE_DB = "<database-file>"
 .\.venv\Scripts\python.exe .\web_chat.py
 ```
 
@@ -176,3 +178,10 @@ CLI 是否找到的展示结果共用 5 分钟缓存，重启立即刷新；任�
 ## 当前说明与历史
 
 entry-3000修正本机路径、双端标题、旧分段路由和权限概括。历史版本见Git。网页快速开始见 [README.md](README.md)，MCP是可选旁路。示例路径须替换，保留已有客户端配置；本轮未验证真实MCP登记与干净环境认证。
+## 变更历史
+
+| 时间 | 版本／议题 | 原状态或决定→新状态或决定 | 原因与证据 | 提出／决定者及来源 | 影响范围 |
+|---|---|---|---|---|---|
+| 2026-11-16 12:47:22 +08:00 | entry-3327／N2 | 斜杠概括不一致→区分TOML及YAML转义 | [主题草稿](docs/drafts/BENCHMARK_RESTART_LESSONS_DISCUSSION.md)§12；DeepSeek N2；Python本机时钟 | Codex按负责人决定维护 | 仅说明文字，配置代码块未改；局部作者检查 |
+| 2026-11-16 12:24:09 +08:00 | entry-3327／语义返修 | 首轮替换→修正示例及历史语境 | 主题草稿§12；Python本机时钟 | Codex | 仅文档静态检查，独立复核待完成 |
+| 2026-11-16 12:15:57 +08:00 | entry-3327／交付引用清理 | 具体本地定位→可交付摘要或通用占位符 | 用户要求；主题草稿§12；Python本机时钟 | Codex | 保留历史事实与版本范围；作者检查，待独立复核 |

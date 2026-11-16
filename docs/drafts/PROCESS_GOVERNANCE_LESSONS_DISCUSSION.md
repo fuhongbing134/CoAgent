@@ -22,9 +22,9 @@
 | 证据 | 事实及边界 | 教训 |
 |---|---|---|
 | E1：[文档规范 §1](../../specs/DOCUMENT_MANAGEMENT_SPEC.md#1-分类位置与索引)、[草稿索引](README.md) | 当前按是否入计划归位，并非所有文档必须先经过草稿；用户U1新增了更强要求 | 目录位置、文档成熟度、实施进度须分清，不能再用“已入计划”代替草稿历史 |
-| E2：[并发设计 §10](../design/CONCURRENCY_BENCHMARK_DESIGN.md#10-讨论取舍异议与复核问题)及entry-3066查证 | G1/G3/G4/G5/G6合并为来源；F1-F4、R1/R2未完整补出原问题。部分主题有摘要，并非完全无内容 | 稳定编号不等于可追溯内容；仅指向一个job仍不足以让读者独立理解 |
+| E2：[并发设计 §10](abandoned/concurrency-benchmark/CONCURRENCY_BENCHMARK_DESIGN.md#10-讨论取舍异议与复核问题)及entry-3066查证 | G1/G3/G4/G5/G6合并为来源；F1-F4、R1/R2未完整补出原问题。部分主题有摘要，并非完全无内容 | 稳定编号不等于可追溯内容；仅指向一个job仍不足以让读者独立理解 |
 | E3：entry-3049计划与调用记录，entry-3066只读解释 | 实施和长矩阵同任务；1200秒超时使后续实现／数据检视未调度，提前交付后取消。设计已复核不等于实现已复核，未合入 | 检视依赖与可审阅检查点应显式安排；任务失败不能让后续职责无声消失 |
-| E4：[设计 §11](../design/CONCURRENCY_BENCHMARK_DESIGN.md#11-实施状态与后续顺序)、[结果记录](../design/CONCURRENCY_BENCHMARK_RESULTS.md)、[设计索引](../design/README.md) | 仍称正式矩阵执行中，与已中断及阶段交付不一致；结果记录工具3项与后续4项检查交接不同步 | 这是已有状态同步义务未执行，不应全归为规则缺失；本轮只记教训不顺手修补 |
+| E4：[设计 §11](abandoned/concurrency-benchmark/CONCURRENCY_BENCHMARK_DESIGN.md#11-实施状态与后续顺序)、[结果记录](abandoned/concurrency-benchmark/CONCURRENCY_BENCHMARK_RESULTS.md)、[设计索引](../design/README.md) | 仍称正式矩阵执行中，与已中断及阶段交付不一致；结果记录工具3项与后续4项检查交接不同步 | 这是已有状态同步义务未执行，不应全归为规则缺失；本轮只记教训不顺手修补 |
 | E5：[设计规范 §2.1](../../specs/DESIGN_DECISION_RECORD_SPEC.md#21-用户期望基线与持续核对强制)、[执行规范](../../specs/TASK_EXECUTION_SPEC.md) | 已要求目标基线、合理扩展及充分验证，但未形成完整的需求合理性、价值优先级和范围分析职责 | 既要改善已有要求的实际执行，也要分析职责缺口；新增角色名本身不保证分析发生 |
 
 E2—E4复用本会话entry-3066已实际读文件及用户提供的调度记录；不是本轮重跑测试或读取运行库。当前分支实际核对为 `perf/ConcurrencyTest`，HEAD `61695a41274676d57dc1dee3c9393352ddca320a`。已有压测三个脚本、两份文档未跟踪，design索引已修改，全部保留。本稿独立于[旧机制讨论](SKILL_MECHANISM_DISCUSSION.md)：旧记录涉及skill与通用规范，本次有新的四项目标和交付判据，不改写其历史结论。
@@ -268,12 +268,17 @@ Codex推荐路径（尚未创建，以下路径为候选而非失效链接）：
 
 规范三清单沿用§14：执行1.0.0、讨论1.2.0、设计留痕1.2.0、文档管理1.2.0为must_follow，本轮核对索引及正文版本并复用已读正文；code-review1.3.0代码审核流程不适用，无代码变更；uncertain无，读取失败无。检查结果见本轮交接，不将未验证项写成通过。
 
+## entry-3310 历史材料迁移说明
+
+上述E2/E4等仍为原事件语境；本次仅将有效链接指向[abandoned/concurrency-benchmark/README.md](abandoned/concurrency-benchmark/README.md)中的废案。原问题、当时处理和历史限制不变；不以归档补足旧验证证据。拟改依据见[BENCHMARK_RESTART_LESSONS_DISCUSSION.md](BENCHMARK_RESTART_LESSONS_DISCUSSION.md)§2。
+
 ## 变更历史
 
 历史排序说明：已知事件时间按近到远；旧时间精度保留，版本或阶段关系仅用于定位，不推断秒数。未确认先后的旧记录保持原相对顺序；本次补录/整理时间不作为旧事件时间。
 
 | 时间 | 版本／议题 | 原状态或决定→新状态或决定 | 原因与证据 | 提出／决定者及来源 | 影响范围 |
 |---|---|---|---|---|---|
+| 2026-11-16 11:25:17 +08:00 | entry-3310／旧压测废案 | 旧压测引用位置→废案位置；原事件语境保留 | entry-3310用户归档授权；前置留稿BENCHMARK_RESTART_LESSONS_DISCUSSION.md；Python本机时钟 | 用户；Codex实施 | 仅归档及引用同步，不恢复测试；教训待讨论 |
 | 2026-11-15 23:21:27 +08:00 | entry-3244／历史倒序整理 | 原历史展示→最新在前、文末六列 | 用户最新要求；合并前置稿见DOCUMENT_LIFECYCLE_HISTORY_DISCUSSION.md§6；时间来源Python本机时钟 | 用户；Codex整理 | 仅历史结构与排序，旧证据和批准边界保留；待两端检视 |
 | 2026-11-15 19:02:52 +08:00 | 0.6／文档收口 | 正式稿待复核→独立复核完成、发现项修正 | F1—F7通过，F8及F9采纳修正，F10非阻断观察保留 | Grok调用c7343d625b3341f481d22fef6d3f8d60；Codex处理 | 本稿§16、正式稿及索引状态；既有讨论和历史保留 |
 | 2026-11-15 18:53:06 +08:00 | 0.5／正式化关联 | 目录待评估→两端接受、正式稿创建待复核 | 两端明确意见，新增postmortem边界与当前决定映射 | Grok及DeepSeek上述调用；Codex整理 | 本稿§15与正式稿双向关联、必要索引；0.4讨论内容保留 |
