@@ -23,3 +23,7 @@ deepseek-harness.txt
 write-probe-*.tmp
 .dsh-tmp/
 probe_evidence/
+
+# 本地测试证据与一次性临时文件，不提交
+test-artifacts/
+*.tmp

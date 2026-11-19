@@ -155,7 +155,8 @@ class Acceptance(unittest.TestCase):
                 db.execute("INSERT INTO collab_calls(job_id,call_id,agent_id,role,state) VALUES (?,'test',?,'collaborator','reserved')", (job, agent))
             with patch.object(web, 'collaboration_service', return_value=service):
                 result = web.invoke_collaboration(job, agent, 'collaborator', 'fixture', call_id='test')
-            return dict(status=result.state, content=result.text), result.dispatch_allowed
+            row = self.sql("SELECT content FROM workbench_messages WHERE id=?", (result.message_id,))[0]
+            return dict(status=result.state, content=row['content']), result.dispatch_allowed
 
     def cli(self, *args):
         env = dict(os.environ, PYTHONIOENCODING='utf-8', PYTHONDONTWRITEBYTECODE='1')
