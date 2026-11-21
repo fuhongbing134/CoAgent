@@ -12,6 +12,7 @@
 | 失败可见性 | [FAILURE_VISIBILITY_DESIGN.md](FAILURE_VISIBILITY_DESIGN.md) | 方向 A 已实现，专项回归通过；第 8 节保留当时全套 165 通过/1 失败/1 跳过；前端失败后续处置见 UI 设计第 8 节，完整真实环境验收及合入状态待补证据 |
 | Grok 适配修正 | [GROK_ADAPTATION_DESIGN.md](GROK_ADAPTATION_DESIGN.md) | entry-2105 修正已通过 Grok 独立复查，R1 关闭，R2/R3 及已核对 P2 维持关闭；真实 CLI 验收与合入状态另待证据 |
 | 项目公开README与上手路径 | [PROJECT_README_DESIGN.md](PROJECT_README_DESIGN.md) | entry-3028价值、工程边界与测试导航优化及两端复核修订完成，静态检查完成；此前隔离启动受DLL错误阻碍，运行上手仍未验收 |
+| 源码目录重组与 Web 宿主拆分 | [SOURCE_LAYOUT_DESIGN.md](SOURCE_LAYOUT_DESIGN.md) | 1.0 正式设计。实施与受控验收见 §14，根入口决定及文档归位见 §15 |
 | 工作台 UI 简化 | [UI_SIMPLIFICATION_DESIGN.md](UI_SIMPLIFICATION_DESIGN.md) | 已实施，用户报告回归通过并确认小卡片、任务区与目录面板移除；窄屏及其余浏览器交互验收待完成，证据见第 8 节 |
 
 旧压测材料已按entry-3310归入废案：[../drafts/abandoned/concurrency-benchmark/README.md](../drafts/abandoned/concurrency-benchmark/README.md)。不属于本目录当前执行计划，历史验证限制继续保留。
@@ -20,6 +21,11 @@
 
 | 时间 | 版本／议题 | 原状态或决定→新状态或决定 | 原因与证据 | 提出／决定者及来源 | 影响范围 |
 |---|---|---|---|---|---|
+| 2026-11-20 11:21:44 +08:00 | entry-3821／设计索引同步 | 原导航→归位后导航 | 用户批准，目录重组草稿 §17。本机时钟 | Codex 实施 | 路径及状态摘要 |
+| 2026-11-20 10:52:16 +08:00 | entry-3803／源码目录设计索引 | 现行入口摘要→增列已确认常设根文件 | [正式设计](SOURCE_LAYOUT_DESIGN.md) §15。本机时钟 | Codex 同步 | 设计索引摘要 |
+| 2026-11-20 09:35:36 +08:00 | entry-3771／源码目录设计索引 | 送审候选摘要→现行设计与入口约定 | [正式设计](SOURCE_LAYOUT_DESIGN.md) §14–§15。本机时钟 | 用户授权，Codex 整理 | 设计索引摘要 |
+| 2026-11-20 09:22:41 +08:00 | entry-3762／设计导航 | 增补 §15 续议入口 | 正式设计 §15，本机时钟 | 用户授权，Codex 整理 | 设计索引 |
+| 2026-11-20 01:01:33 +08:00 | entry-3721／源码目录重组 1.0 | 无→正式设计入口 | [正式设计](SOURCE_LAYOUT_DESIGN.md) §13。本机时钟 | 用户授权，Codex 归档 | 设计索引，实施待开展 |
 | 2026-11-18 02:29:31+08:00 | entry-3551／stdin 字节统计 | 编码失败→单请求 I2 握手完成 | 形成记录§26，fixture-smoke-3551-02；Python本机时钟 | Codex | 测试夹具及状态同步，待独立复查 |
 | 2026-11-18 02:17:55+08:00 | entry-3551／退出观察 | 待返修→无服务检查通过 | 形成记录§25及DS-R1/R2、G-R1/R2；Python本机时钟 | Codex | 测试夹具返修，待新根单请求及独立复查 |
 | 2026-11-18 02:04:55+08:00 | entry-3543／单请求诊断 | 待运行→已创建并确认退出，未到达 ready | 形成记录§24及隔离运行证据 | Codex | 单请求失败，待正式检视 |

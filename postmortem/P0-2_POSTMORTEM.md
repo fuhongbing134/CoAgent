@@ -1,7 +1,7 @@
 # P0-2 复盘（Postmortem）
 
 > 本文件是 P0-2（并发会话冲突）修复的独立复盘，作为以后开发需求的教训参考。
-> 综合 `P0-2_OVERVIEW.md`、`P0-2_DISCUSSION_RECORD.md`、`P0-2_VERIFY_LOG.md`、`P0-2_TASK6A_DESIGN.md`、`P0-2_PROBE_PLAN.md` 及 ISSUE8 系列文档。
+> 综合 [P0-2_OVERVIEW.md](../docs/archive/p0-2/P0-2_OVERVIEW.md)、[P0-2_DISCUSSION_RECORD.md](../docs/archive/p0-2/P0-2_DISCUSSION_RECORD.md)、[P0-2_VERIFY_LOG.md](../docs/archive/p0-2/P0-2_VERIFY_LOG.md)、[P0-2_TASK6A_DESIGN.md](../docs/archive/p0-2/P0-2_TASK6A_DESIGN.md)、[P0-2_PROBE_PLAN.md](../docs/archive/p0-2/P0-2_PROBE_PLAN.md) 及 ISSUE8 系列文档。
 > 结论分「事实 / 推断 / 已接受限制」三类标注；**只记录，不修复**。
 
 ---
@@ -110,7 +110,7 @@
 ## 六、遗留项
 
 - **6B（崩溃遗留占用的解除/恢复）**：未实施，已设计 B1-B8（离线 CLI + release/force-clear + 最小审计表 + 原子幂等），核心决策点「force-clear 是否纳入」待用户定。
-- **sub-agent 并发多任务（B）**：待评估，已记 `BACKLOG.md` 第 6 条（尚待决定）。
+- **sub-agent 并发多任务（B）**：待评估，已记 [BACKLOG.md](../docs/BACKLOG.md) 第 6 条（尚待决定）。
 - **任务 5 生产切换**：`SESSION_CONFIGURATION_RESOLVER` 仍为 `None`，统一 session 校验能力未在生产开启；命名空间确认/受限验证/候选入口三件事未做。
 - **真实并发场景未实测**：任务 A 的「正在忙」提示、6A 的阻断，均只在自动化验证（临时库 + 假适配器）通过，真实环境「任务跑到一半再派活」未人工复现。
 - **协作调度派发异常根因**：未核实（`collaboration_service.py` 的 drive / 终端邀请处理）。

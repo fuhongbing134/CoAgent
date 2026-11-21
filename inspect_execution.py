@@ -3,7 +3,7 @@ import argparse
 import json
 import sys
 
-from execution_inspection import InspectionQueryError, read_occupancy_snapshot
+from workbench.execution.execution_inspection import InspectionQueryError, read_occupancy_snapshot
 
 
 CLASSIFICATIONS = {

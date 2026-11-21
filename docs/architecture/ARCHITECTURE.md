@@ -7,28 +7,31 @@
 |---|---|
 | 文档状态 | 现状记录已定稿；改进方向为提案、未实施 |
 | 收敛基线 | feat/architecture，HEAD `1266e5b895fbe3e1eee6b1ad2986a0209f0e14ef`（与 main 一致） |
-| 代码事实基线 | 与 `32b1de7` 比较 Python 无差异，沿用第二轮已核对代码事实 |
-| 验证范围 | 未做 Mermaid 渲染、崩溃/重启注入、真实 CLI、浏览器走查 |
+| 代码事实基线 | 以 [源码重组实施记录](../design/SOURCE_LAYOUT_DESIGN.md#14-实施记录entry-3730) 所列模块为准；原始收敛基线见上行 |
+| 验证范围 | 本次目录迁移采用本地回归和隔离入口检查，Mermaid 渲染、真实 CLI 与浏览器走查未运行 |
 
 ---
 
 ## 1. 官方现状架构图（已核对事实，控制流视角）
 
-本图是**逻辑控制流**，`web_chat.py` 当前仍同时承担组合根、协作编排、worker、提示构造与适配器多项职责。实线表示主要调用、控制或结果传递；虚线表示数据、配置、内存或提示关系。图中仅保留现有 `grok_adapter`，其余后端的对等适配属于改进提案。
+本图显示目录重组后的逻辑控制流。`web_chat.py` 负责启动、项目路径和服务装配，HTTP 路由、页面、worker、执行、存储和 CLI 调用位于 `workbench/` 中。实线表示主要调用、控制或结果传递；虚线表示数据、配置、内存或提示关系。
 
 ```mermaid
 flowchart TB
-  U["用户浏览器"] --> H
+  U["用户浏览器"] --> HTTP
 
   subgraph HOST["工作台执行宿主 Python 进程"]
-    H["web_chat.py 页面、HTTP入口与组合根"]
-    H -->|"普通对话"| W["worker / run_agent_task / run_*"]
-    H -->|"协作请求"| C["协作入口、协议、Service、生命周期与Actions"]
+    H["web_chat.py 启动与组合根"]
+    H --> HTTP["web/routes.py 与 page.py"]
+    HTTP -->|"普通对话"| W["workers/dispatch.py"]
+    HTTP -->|"协作请求"| C["协作入口、协议、Service、生命周期与Actions"]
     C -->|"invoke_collaboration"| W
-    W --> P["build_agent_prompt"]
-    W --> A["现有 grok_adapter 命令构造与解析"]
-    W --> E["Execution / ExecutionTracker"]
-    E --> M["ManagedProcess"]
+    W --> P["prompts/context.py"]
+    W --> A["adapters/web_backends.py：命令、运行与解析"]
+    W --> E["execution/web_runs.py：登记、取消与清理"]
+    A --> E
+    E --> T["Execution / ExecutionTracker"]
+    T --> M["ManagedProcess"]
     R["Agent注册与配置"] -.-> W
     N["ACTIVE_RUNS / job锁 / _rerun唤醒"] -.-> W
     W --> Q{"回复分类"}
@@ -57,7 +60,7 @@ flowchart TB
   MG -.-> P
   SP["AGENTS.md与specs索引"] -.-> P
   P -.->|"提示内容"| CLI
-  MC["MCP客户端"] --> B["agent_bridge MCP旁路"]
+  MC["MCP客户端"] --> B["agent_bridge.py / mcp/bridge.py"]
   B -.-> MG
 ```
 
@@ -65,16 +68,16 @@ flowchart TB
 
 - 浏览器普通对话经 HTTP → worker/`run_*` → Execution；MCP 是 `agent_bridge` 旁路，写 `messages` 桥表后参与提示上下文，普通对话不经 MCP。
 - `AGENTS.md` 与 specs 索引经 `build_agent_prompt` 提示注入；协议 JSON 由宿主校验；规范正文由 Agent 按需读取遵从。
-- 三条消息写路径：普通/失败/取消 → `update_workbench_message`；协作成功 → `stage_collaboration_reply`（仍 pending）；协议接收事务 → `finalize_message`。
+- `storage/web_store.py` 承载三条消息写路径：普通/失败/取消 → `update_workbench_message`；协作成功 → `stage_collaboration_reply`（仍 pending）；协议接收事务 → `finalize_message`。
 - 内存登记（`ACTIVE_RUNS` / job 锁 / `_rerun`）与执行占用、退出证据分开；占用登记不能证明 OS 进程存活。
 - `_rerun` 表示同进程 job 锁争用的唤醒合并；启动已有 `interrupt_running`，恢复的是控制状态。
 - `execution_sessions` 是 SQLite 表，由 `execution_tracking.py` 操作，仓库无 `execution_sessions.py`。
 
 ---
 
-## 2. 改进方向优先级（全部为提案、未实施）
+## 2. 原评审改进方向优先级
 
-下表合并三方原编号（DSH/CX/GK 的 D/O/M）去重后按成本收益排序，属于本轮收敛建议，未实施、未写入 `BACKLOG.md`（除非用户另行授权）。
+下表合并三方原编号（DSH/CX/GK 的 D/O/M）去重后按成本收益排序，保留原收敛建议及其当时的排序。宿主的目录迁移见源码重组实施记录，其余提案的状态以各自的设计和验证记录为准。
 
 | 优先级 | 合并项及原编号 | 建议与成本收益依据 |
 |---|---|---|
@@ -87,7 +90,7 @@ flowchart TB
 | 中 | 协议语义与入口覆盖，GK-M02 | 已有重复任务/依赖检查与 status/邀请 XOR 作为基线；补检对象是混合计划语义与入口覆盖 |
 | 低，条件性 | job 工作区隔离，GK-M03 | 适用于有实际冲突压力的编码任务，文档协作不必隔离；合并、清理与路径成本较高 |
 
-**重要区分**：三方一致把「宿主职责集中」评为**高结构债（事实）**；其实施顺序放在「只读执行诊断 + 恢复接收契约」之后，理由是后两者能先明确迁移需保持的行为。本文档同时记录两层含义——**事实严重度高 / 实施顺序中**，不作为降级。
+**重要区分**：原始评审把迁移前的「宿主职责集中」评为**高结构债**；其实施顺序放在「只读执行诊断 + 恢复接收契约」之后，理由是后两者能先明确迁移需保持的行为。本文档同时记录两层含义——**事实严重度高 / 实施顺序中**，不作为降级。
 
 ---
 
@@ -103,7 +106,7 @@ flowchart TB
 
 ### 3.3 共享适配唯一性：保留分歧（需用户裁决或 skill 验证后裁决）
 
-- **已核对事实**：三后端 skill 发现机制不同构（Codex `.agents/skills` 扫描、Grok 项目 `.grok/skills`、DSH 宿主注入 `available_skills`，且当前工作台 `web_chat.py` 未见项目 skill 注入逻辑）。
+- **已核对事实**：三后端 skill 发现机制不同构（Codex `.agents/skills` 扫描、Grok 项目 `.grok/skills`、DSH 宿主注入 `available_skills`，且当前工作台后端适配中未见项目 skill 注入逻辑）。
 - **DSH 立场**：因不同构，故「一份权威正文 + 各后端薄适配」在事实层面是必须的，候选的只是薄适配的具体实现方式。
 - **Grok / Codex 立场**：不同构推出「必须薄适配」是推断、不是已核对事实；「一份权威正文 + 各后端薄适配」保持**候选**，其他候选还包括各后端各持一份正文副本、仅走普通文件共享流程、或验证后确认某端原生扫描即可。
 - 此项延后到 skill 机制验证（V02/V09）后裁决，必要时交用户。
@@ -112,6 +115,6 @@ flowchart TB
 
 ## 4. 验证范围与缺口
 
-- 现状图尚未渲染；恢复、并发、真实 CLI、浏览器场景未运行验证。
+- 现状图按代码调用关系核对，尚未渲染。目录迁移后的受控并发与公开入口验证见源码重组实施记录。真实 CLI 和浏览器走查待验证。
 - skill 注册链、链接/引用、版本同步仍待机制探测。
 - 原稿与第二轮修订历史保留于 `docs/drafts/architecture-review/`。

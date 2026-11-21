@@ -9,6 +9,9 @@
 | 分类 | 文档 | 状态与收录理由 |
 |---|---|---|
 | 三端终审通过 | [工作台调用流程讨论记录](workbench-call-flow/README.md) | 保留三端独立原稿、三份互审及44项处理映射；[统一稿](../architecture/WORKBENCH_CALL_FLOW.md)已形成源码静态核对层面的共识，渲染与运行验证边界见正文；不构成新增开发计划 |
+| 提案 | [README.new.md](README.new.md) | README 候选稿，形成与后续处理见[项目 README 设计](../design/PROJECT_README_DESIGN.md) |
+| 已决定，已实施待检视 | [SOURCE_LAYOUT_DESIGN.md](SOURCE_LAYOUT_DESIGN.md) | §17 记录根入口决定、逐件归位及实施，§14–§16 保留候选。正式约定见[设计 §15](../design/SOURCE_LAYOUT_DESIGN.md#15-根目录与入口约定) |
+| 已形成正式记录 | [源码目录重组与宿主拆分需求](SOURCE_LAYOUT_REQUIREMENTS.md) | entry-3689，0.2 同版检视基线，正式稿见 [REQ-002 1.0](../requirements/SOURCE_LAYOUT_REQUIREMENTS.md) |
 | 讨论中 | [架构讨论系列](architecture-review/README.md)及[第二轮汇总](architecture-review/SUMMARY.md#第二轮复核汇总原判断修正及维持对照) | 三方署名分析、事实核查和修订历史整体保存；含已实现现状的观察，但改进建议尚未正式选定，不能当作官方架构或整体实施计划 |
 | 讨论中 | [三后端skill机制与第一步方案](SKILL_MECHANISM_DISCUSSION.md) | 已汇总复盘及三端共识；通用规范1.0.0已生效；entry-2882评估暂不落地文档管理skill，保留候选、理由与重评条件，历史异议保留 |
 | 讨论中 | [STAGE_DELIVERY_SPEC_DISCUSSION.md](STAGE_DELIVERY_SPEC_DISCUSSION.md) | entry-3457；0.7；草稿待优化，用户认为当前机制仍有问题；既有讨论与完整阶段需求保留，候选未定稿，正式规则未改、行为未验证 |
@@ -40,7 +43,7 @@ entry-3189：CODE_SPEC_SPLIT_DISCUSSION.md由讨论中转为已形成正式记�
 - 新想法先标明「待评估」或「讨论中」，记录问题、来源、候选方案及尚待决定的内容。明确放弃时标明「废弃」及原因，保留历史和后继方案链接。
 - 进入正式开发计划时，写明用户决定、计划入口、范围和验收依据，将对应方案迁到正式文档区，并同时更新本清单、[设计索引](../README.md)及引用链接。实现和验证状态另记，不能将「已计划」写成「已实现」。
 - 同一文件混合已实现记录和未定建议时，保留正式实施依据；可独立的想法再拆出并双向关联，不仅凭标题中的「草案」迁移整份记录。
-- 不复制规范正文，不在本目录制定新的生效规范。现行规范仍以[规范索引](../../specs/README.md)为准；正式开发计划参考[BACKLOG](../../BACKLOG.md)及其指向的专项计划。
+- 不复制规范正文，不在本目录制定新的生效规范。现行规范仍以[规范索引](../../specs/README.md)为准；正式开发计划参考[BACKLOG](../BACKLOG.md)及其指向的专项计划。
 
 ## 本次整理依据与边界
 
@@ -60,6 +63,10 @@ entry-3189：CODE_SPEC_SPLIT_DISCUSSION.md由讨论中转为已形成正式记�
 
 | 时间 | 版本／议题 | 原状态或决定→新状态或决定 | 原因与证据 | 提出／决定者及来源 | 影响范围 |
 |---|---|---|---|---|---|
+| 2026-11-20 11:21:44 +08:00 | entry-3821／草稿索引同步 | 原导航→归位后导航 | 用户批准，目录重组草稿 §17。本机时钟 | Codex 实施 | 路径及状态摘要 |
+| 2026-11-20 08:48:28 +08:00 | entry-3754／目录草稿索引 | 已形成正式记录→补列续议待审阅 | [设计稿](SOURCE_LAYOUT_DESIGN.md) §14。本机时钟 | 用户委托，Codex 整理 | 草稿索引摘要 |
+| 2026-11-20 01:01:33 +08:00 | entry-3721／设计归档 | 待检视→保留评审基线及正式后继 | [正式设计](../design/SOURCE_LAYOUT_DESIGN.md) §13。本机时钟 | 用户授权，Codex 归档 | 草稿索引 |
+| 2026-11-20 00:52:04 +08:00 | entry-3721／设计草稿 0.2 | 0.1 条目→0.2 待检视 | [设计稿](SOURCE_LAYOUT_DESIGN.md) §9–§12。本机时钟 | 用户委托，Codex 修订 | 草稿索引同步 |
 | 2026-11-19 01:56:13 +08:00 | entry-3668／报告归档 | 待审入口→审阅基线与正式稿关联 | [../verification/CONCURRENCY_LOAD_TEST_REPORT.md](../verification/CONCURRENCY_LOAD_TEST_REPORT.md)，本机时钟 | 用户委托，Codex 归档 | 仅状态与导航，保留审阅基线 |
 | 2026-11-19 01:51:11 +08:00 | entry-3668／报告 0.8 | 无→新增 r7 报告待审入口 | [CONCURRENCY_LOAD_TEST_REPORT_R7.md](CONCURRENCY_LOAD_TEST_REPORT_R7.md)，本机时钟 | 用户委托，Codex 整理 | 草稿导航，正式归档待同版检视 |
 | 2026-11-18 13:38:52 +08:00 | 0.7／entry-3631 | 0.6→返修及复跑 | 同版检视反馈与本机实测 | Codex | 阶段报告入口同步 |

@@ -14,4 +14,4 @@
 
 ## 待实现功能
 
-见根目录 `BACKLOG.md`（不在规范之列）。
+见 [docs/BACKLOG.md](docs/BACKLOG.md)（不在规范之列）。

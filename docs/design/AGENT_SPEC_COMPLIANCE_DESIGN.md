@@ -233,7 +233,7 @@ build_agent_prompt()（web_chat.py 第 1797–1857 行）只拼接「工作目�
 
 ## 6. 调试与结果记录
 
-采用 **append-only 追加式**，参考 [P0-2_VERIFY_LOG.md](../../P0-2_VERIFY_LOG.md)，保留历史结论及后续修正依据。
+采用 **append-only 追加式**，参考 [P0-2_VERIFY_LOG.md](../archive/p0-2/P0-2_VERIFY_LOG.md)，保留历史结论及后续修正依据。
 
 ### 2026-10-28 17:24:53 +08:00 — 首期索引注入运行验证通过
 

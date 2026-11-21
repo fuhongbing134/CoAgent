@@ -112,7 +112,7 @@ Codex/Grok 显式路径无效时不会继续回退到默认候选。修改 PATH 
 
 消息、会话关联与执行状态在本地持久化。工作台使用 `workbench_messages`，可选桥接使用 `agents`/`messages`；普通客户端聊天不会自动完整导入。提示中可能包含桥消息和共享对话：共享上下文默认最近30条、每条约3000字符截断，并有已见消息过滤，并非完整历史原文。发送给Agent的内容可能随CLI请求进入对应模型服务，请按各后端的数据政策选择分享内容。
 
-需要MCP客户端配置时再阅读 [MCP_SETUP.md](MCP_SETUP.md)。
+需要MCP客户端配置时再阅读 [MCP_SETUP.md](docs/guides/MCP_SETUP.md)。
 
 ## 5. 常见问题与已知限制
 
@@ -128,7 +128,7 @@ Codex/Grok 显式路径无效时不会继续回退到默认候选。修改 PATH 
 
 服务中断后，执行占用可能保守保留；重启初始化会把遗留的 pending 消息标为 cancelled，这不证明旧进程已经退出，也不代表原任务会自动续跑。目前没有崩溃遗留占用的自动解除或正式人工解除工具，不能把重启当作恢复完成。
 
-干净环境安装、最低 Python 版本、CLI 兼容矩阵、真实模型调用、MCP 真实登记及浏览器协作全流程尚无完整验收结论。架构中的改进方向和 [BACKLOG.md](BACKLOG.md) 是后续事项，不能当作已交付能力。
+干净环境安装、最低 Python 版本、CLI 兼容矩阵、真实模型调用、MCP 真实登记及浏览器协作全流程尚无完整验收结论。架构中的改进方向和 [BACKLOG.md](docs/BACKLOG.md) 是后续事项，不能当作已交付能力。
 
 ## 6. 架构概览与项目结构
 
@@ -145,37 +145,37 @@ session 绑定代次校验已有数据层实现，但默认配置未启用统一
 | 入口 | 用途 |
 |---|---|
 | [agent_bridge.py](agent_bridge.py) | 可选MCP消息桥 |
-| [agent_registry.py](agent_registry.py) | 后端身份与别名 |
+| [agent_registry.py](workbench/agents/agent_registry.py) | 后端身份与别名 |
 | [docs/architecture/README.md](docs/architecture/README.md) | 架构及调用流程导航；注意各文档基线和验证范围 |
 | [main.py](main.py) | 独立Codex终端对话脚本，区别于网页工作台 |
 | [web_chat.py](web_chat.py) | 网页工作台启动入口 |
 
 ## 7. 开发、测试与文档导航
 
-网页上手以本 README 为准；仅在需要 MCP 客户端时阅读 [MCP_SETUP.md](MCP_SETUP.md)。维护者先读项目入口与规范，再按主题查架构或设计。
+网页上手以本 README 为准；仅在需要 MCP 客户端时阅读 [MCP_SETUP.md](docs/guides/MCP_SETUP.md)。维护者先读项目入口与规范，再按主题查架构或设计。
 
 | 文档 | 用途 |
 |---|---|
 | [AGENTS.md](AGENTS.md) | Agent任务入口 |
-| [BACKLOG.md](BACKLOG.md) | 待实现事项 |
+| [docs/BACKLOG.md](docs/BACKLOG.md) | 待实现事项 |
 | [docs/README.md](docs/README.md) | 设计、架构与草稿分区导航 |
 | [specs/README.md](specs/README.md) | 生效规范索引 |
 
 在项目目录运行能力模块专项隔离测试：
 
 ```powershell
-.\.venv\Scripts\python.exe -m unittest test_capabilities -v
+.\.venv\Scripts\python.exe -m unittest tests.unit.test_capabilities -v
 ```
 
-该命令不是全仓测试。安装Node.js时还会执行简化DOM的前端模拟回归，未安装则跳过；不等于浏览器视觉验收。[verify_real_backends.py](verify_real_backends.py) 仅做真实CLI `--version` 启动与退出探测，不验证模型调用、续接或完整取消流程。不要将它当作首次问答验收。
+该命令不是全仓测试。安装Node.js时还会执行简化DOM的前端模拟回归，未安装则跳过；不等于浏览器视觉验收。[verify_real_backends.py](tests/verify/verify_real_backends.py) 仅做真实CLI `--version` 启动与退出探测，不验证模型调用、续接或完整取消流程。不要将它当作首次问答验收。
 
 其他核心测试可按主题阅读；下列入口不是已通过的当前验收声明：
 
 | 主题 | 测试入口与范围 |
 |---|---|
-| 协作 | [test_collaboration_entry.py](test_collaboration_entry.py)、[test_collaboration_lifecycle.py](test_collaboration_lifecycle.py)、[test_collaboration_service.py](test_collaboration_service.py)：入口、接收与调度 |
-| 执行状态与接线 | [test_execution_sessions.py](test_execution_sessions.py)、[test_execution_tracking.py](test_execution_tracking.py)、[test_execution_wiring.py](test_execution_wiring.py)：session、执行域及隔离数据库/模拟调用接线 |
-| 受管进程 | [test_managed_process.py](test_managed_process.py)：真实 Windows 受控进程与 Job 句柄，不证明真实后端没有向外部委托工作 |
+| 协作 | [test_collaboration_entry.py](tests/unit/test_collaboration_entry.py)、[test_collaboration_lifecycle.py](tests/unit/test_collaboration_lifecycle.py)、[test_collaboration_service.py](tests/unit/test_collaboration_service.py)：入口、接收与调度 |
+| 执行状态与接线 | [test_execution_sessions.py](tests/unit/test_execution_sessions.py)、[test_execution_tracking.py](tests/unit/test_execution_tracking.py)、[test_execution_wiring.py](tests/unit/test_execution_wiring.py)：session、执行域及隔离数据库/模拟调用接线 |
+| 受管进程 | [test_managed_process.py](tests/unit/test_managed_process.py)：真实 Windows 受控进程与 Job 句柄，不证明真实后端没有向外部委托工作 |
 
 复盘中的“17项验收、51项回归”是对应阶段的历史记录，不代表每次修改后已重新验证；当前检查与未验证项见设计记录。
 

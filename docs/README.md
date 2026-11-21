@@ -4,10 +4,13 @@
 
 | 分区 | 入口 | 说明 |
 |---|---|---|
+| 历史归档 | [archive/README.md](archive/README.md) | 协作协议、Issue #8 和 P0-2 专题历史 |
+| 项目待办 | [BACKLOG.md](BACKLOG.md) | 持续维护的后续需求与执行状态 |
 | 架构文档 | [architecture/README.md](architecture/README.md) | 架构现状记录、改进方向与调用流程统一稿 |
 | 代码判断案例 | [code-examples/README.md](code-examples/README.md) | 入口0.6；好坏对照及两项真实问题，含收录时间与未落地建议；真实案例0.4独立检视无阻断，本次说明自查未复查 |
 | 设计文档 | [design/README.md](design/README.md) | 已进入正式计划的方案/技术设计，文件级清单与现状见分区内 |
 | 草稿与讨论 | [drafts/README.md](drafts/README.md) | 未入正式计划的提案、调研、讨论与废弃方案；旧压测见[drafts/abandoned/concurrency-benchmark/README.md](drafts/abandoned/concurrency-benchmark/README.md) |
+| 操作指南 | [guides/README.md](guides/README.md) | MCP 接入和 Web 协作操作 |
 | 流程教训 | [lessons/README.md](lessons/README.md) | 正式流程／协作教训；事故复盘仍见根目录[postmortem/P0-2_POSTMORTEM.md](../postmortem/P0-2_POSTMORTEM.md)，本轮不迁移旧材料 |
 | 需求分析 | [requirements/README.md](requirements/README.md) | 首份正式需求分析REQ-001／1.1；范围及验证状态见目录内 |
 | 验证报告 | [verification/README.md](verification/README.md) | 已归档的受控验证报告，实测范围及未验证项见报告 |
@@ -25,6 +28,7 @@
 
 | 时间 | 版本／议题 | 原状态或决定→新状态或决定 | 原因与证据 | 提出／决定者及来源 | 影响范围 |
 |---|---|---|---|---|---|
+| 2026-11-20 11:21:44 +08:00 | entry-3821／总索引同步 | 原导航→归位后导航 | 用户批准，目录重组草稿 §17。本机时钟 | Codex 实施 | 路径及状态摘要 |
 | 2026-11-19 01:56:13 +08:00 | entry-3668／验证报告入口 | 无→新增验证报告分区 | [审阅基线](drafts/CONCURRENCY_LOAD_TEST_REPORT_R7.md)，本机时钟 | 用户委托，Codex 归档 | 文档导航 |
 | 2026-11-17 11:48:37 +08:00 | entry-3475／结构整理 | 原摘要→同步分析1.1及形成记录 | 用户要求；关联草稿§17；Python本机时钟 | 用户；Codex | 仅文档导航，未测试 |
 | 2026-11-17 11:30:55 +08:00 | entry-3471／需求分析分区 | 无→独立正式需求入口 | 用户要求；[前置记录](drafts/CONCURRENCY_LOAD_TEST_REQUIREMENTS.md)§16；Python本机时钟 | 用户授权；Codex | 仅文档导航及正式化 |

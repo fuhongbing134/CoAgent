@@ -50,7 +50,7 @@ CoAgent是本机Windows多Agent工作台，通过浏览器发送消息、调用�
 | F3 [web_chat.py](../../web_chat.py)125、154—213；[collaboration_service.py](../../collaboration_service.py)221—261 | 协作invoke使用按Agent的锁；单job主循环取ready[0]且同步接收 | 单job串行是当前行为；跨job同Agent会有等待层，不以无并行自动判失败；普通消息run_agent_task不持此协作锁，同Agent跨对话为独立域，允许重叠但真实CLI表现未测；广播按收件人开线程，不等于单job并行。不同入口必须分组 |
 | F4 [web_chat.py](../../web_chat.py)264—279、2547—2593；[execution_tracking.py](../../execution_tracking.py)101—110 | SQLite连接等待及BEGIN IMMEDIATE；接入SQLite错误转503 | 共享写事务存在争用可能，需测才知影响；未核运行journal模式，不宣称当前使用WAL或已经发生锁瓶颈 |
 | F5 [execution_tracking.py](../../execution_tracking.py)417—455；[managed_process.py](../../managed_process.py)232—240 | unknown退出保留quiescing；confirmed仅证明受管Job；取消意图不等于退出 | 取消／重复回调／旧代次与新请求交错有正确性价值；不能宣称掌握外部所有委托进程 |
-| F6 [web_chat.py](../../web_chat.py)1058、122；[BACKLOG](../../BACKLOG.md)第6项 | 页面3秒轮询；默认session配置resolver为None；同Agent多任务分流仍待决定 | 可见延迟不等于执行耗时；默认与启用统一session路径须分开；不能把未来sub-agent分流纳入当前通过要求 |
+| F6 [web_chat.py](../../web_chat.py)1058、122；[BACKLOG](../BACKLOG.md)第6项 | 页面3秒轮询；默认session配置resolver为None；同Agent多任务分流仍待决定 | 可见延迟不等于执行耗时；默认与启用统一session路径须分开；不能把未来sub-agent分流纳入当前通过要求 |
 | F7 [test_execution_tracking.py](../../test_execution_tracking.py)107—155 | 两线程屏障竞争要求仅一个获得域；独立域另有断言 | 已有轻量可复用入口，本轮只读、不宣称本版通过；覆盖数据层不能代替HTTP到进程链 |
 | F8 [test_execution_wiring.py](../../test_execution_wiring.py)、[test_execution_sessions.py](../../test_execution_sessions.py)、[test_managed_process.py](../../test_managed_process.py) | 具名用例涵盖取消、unknown、旧代次、session及受管进程；部分会启动真实受控进程 | 先核既有覆盖与隔离再决定补什么；不能直接全仓执行或据文件名判断无副作用 |
 
@@ -337,7 +337,7 @@ CoAgent是本机Windows多Agent工作台，通过浏览器发送消息、调用�
 | F3 [web_chat.py](../../web_chat.py)125、154—213；[collaboration_service.py](../../collaboration_service.py)221—261 | 协作invoke使用按Agent的锁；单job主循环取ready[0]且同步接收 | 单job串行是当前行为；跨job同Agent会有等待层，不以无并行自动判失败；普通消息run_agent_task不持此协作锁，同Agent跨对话为独立域，允许重叠但真实CLI表现未测；广播按收件人开线程，不等于单job并行。不同入口必须分组 |
 | F4 [web_chat.py](../../web_chat.py)264—279、2547—2593；[execution_tracking.py](../../execution_tracking.py)101—110 | SQLite连接等待及BEGIN IMMEDIATE；接入SQLite错误转503 | 共享写事务存在争用可能，需测才知影响；未核运行journal模式，不宣称当前使用WAL或已经发生锁瓶颈 |
 | F5 [execution_tracking.py](../../execution_tracking.py)417—455；[managed_process.py](../../managed_process.py)232—240 | unknown退出保留quiescing；confirmed仅证明受管Job；取消意图不等于退出 | 取消／重复回调／旧代次与新请求交错有正确性价值；不能宣称掌握外部所有委托进程 |
-| F6 [web_chat.py](../../web_chat.py)1058、122；[BACKLOG](../../BACKLOG.md)第6项 | 页面3秒轮询；默认session配置resolver为None；同Agent多任务分流仍待决定 | 可见延迟不等于执行耗时；默认与启用统一session路径须分开；不能把未来sub-agent分流纳入当前通过要求 |
+| F6 [web_chat.py](../../web_chat.py)1058、122；[BACKLOG](../BACKLOG.md)第6项 | 页面3秒轮询；默认session配置resolver为None；同Agent多任务分流仍待决定 | 可见延迟不等于执行耗时；默认与启用统一session路径须分开；不能把未来sub-agent分流纳入当前通过要求 |
 | F7 [test_execution_tracking.py](../../test_execution_tracking.py)107—155 | 两线程屏障竞争要求仅一个获得域；独立域另有断言 | 已有轻量可复用入口，本轮只读、不宣称本版通过；覆盖数据层不能代替HTTP到进程链 |
 | F8 [test_execution_wiring.py](../../test_execution_wiring.py)、[test_execution_sessions.py](../../test_execution_sessions.py)、[test_managed_process.py](../../test_managed_process.py) | 具名用例涵盖取消、unknown、旧代次、session及受管进程；部分会启动真实受控进程 | 先核既有覆盖与隔离再决定补什么；不能直接全仓执行或据文件名判断无副作用 |
 

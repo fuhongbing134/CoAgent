@@ -11,8 +11,8 @@ from fixture import output, reply
 from runner import Driver, audit
 from types import SimpleNamespace
 from unittest.mock import patch
-from collaboration_entry import parse_entry_response
-from grok_adapter import parse_output
+from workbench.collaboration.collaboration_entry import parse_entry_response
+from workbench.adapters.grok_adapter import parse_output
 
 
 class PureChecks(unittest.TestCase):

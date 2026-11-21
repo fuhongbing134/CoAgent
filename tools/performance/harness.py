@@ -1,6 +1,7 @@
 """Isolated process-local instrumentation. Importing this module starts nothing."""
 import dataclasses
 import hashlib
+from inspect import getattr_static
 import json
 import os
 from pathlib import Path
@@ -30,7 +31,7 @@ class Harness:
             self.events.append(dict(event=name, ns=time.perf_counter_ns(), **data))
 
     def replace(self, obj, name, replacement):
-        self.originals.append((obj, name, getattr(obj, name)))
+        self.originals.append((obj, name, getattr_static(obj, name)))
         setattr(obj, name, replacement)
 
     def prepare(self):
@@ -58,8 +59,12 @@ class Harness:
         python = str(Path(sys.executable).resolve(strict=True))
         for name in ("resolve_codex_command", "resolve_dsh_command", "resolve_grok_command"):
             self.replace(web, name, lambda: python)
-        self.replace(web, "resolve_dsh_desktop_runtime", lambda command: None)
-        self.replace(web, "resolve_working_directory", lambda conversation: self.workspace)
+            self.replace(web.ChatHandler, name, staticmethod(lambda: python))
+        from workbench.adapters import deepseek_command
+        self.replace(deepseek_command, "resolve_dsh_desktop_runtime", lambda command: None)
+        fixture_directory = lambda conversation: self.workspace
+        self.replace(web, "resolve_working_directory", fixture_directory)
+        self.replace(web.ChatHandler, "resolve_working_directory", staticmethod(fixture_directory))
         if web.build_dsh_command(python, ["--json", "-"])[1:] != (False, False):
             raise RuntimeError("DSH shell/shim not disabled")
         original_begin = web.begin_execution
@@ -128,7 +133,7 @@ class Harness:
                            exit_evidence=getattr(result, "exit_evidence", "missing"))
                 self.budget.settle(getattr(result, "exit_evidence", "unknown"))
         self.replace(web, "run_managed_process", run)
-        from collaboration_actions import ActionStore
+        from workbench.collaboration.collaboration_actions import ActionStore
         original_accept = ActionStore.accept_result
         def accept(store, job, call, *args, **kwargs):
             receipt = original_accept(store, job, call, *args, **kwargs)
@@ -137,7 +142,7 @@ class Harness:
             return receipt
         self.replace(ActionStore, "accept_result", accept)
         # The actual lifecycle counts calls after entry; permit only the fixed plan.
-        from collaboration_service import CollaborationService
+        from workbench.collaboration.collaboration_service import CollaborationService
         original_register = CollaborationService.register_entry
         def register(service, *args, **kwargs):
             value = original_register(service, *args, **kwargs)

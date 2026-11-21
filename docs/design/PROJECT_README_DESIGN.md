@@ -1,6 +1,6 @@
 # 项目 README 内容与上手设计
 
-文档状态：已决定；当前实施：entry-3028 README 优化、两端独立复核及意见修订完成；文档静态检查完成，运行上手仍未验收。entry-3000 为历史主稿阶段，其结果单独保留。关联：[README.md](../../README.md)、[MCP_SETUP.md](../../MCP_SETUP.md)、[README.md](README.md)。
+文档状态：已决定；当前实施：entry-3028 README 优化、两端独立复核及意见修订完成；文档静态检查完成，运行上手仍未验收。entry-3000 为历史主稿阶段，其结果单独保留。关联：[README.md](../../README.md)、[MCP_SETUP.md](../guides/MCP_SETUP.md)、[README.md](README.md)。
 
 ## 用户基线与范围
 

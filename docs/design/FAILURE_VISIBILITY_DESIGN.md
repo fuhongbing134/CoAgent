@@ -106,7 +106,7 @@ entry-3189引用维护：上方版本列表保留原实施时语境；后续编�
 | `python -m unittest test_execution_wiring` | 14 tests，OK，3.817s | previous 幂等及 mock 适配回归通过；日志中的 release fault 和退出未确认异常为受控失败路径，不等于测试失败 |
 | `python -m unittest discover` | 167 tests，FAILED (failures=1, skipped=1)，22.351s；2026-10-29 19:41:11 开始 | **165 通过、1 失败、1 跳过**，全套未通过；不能记为「166 通过 + 1 跳过」 |
 
-- 唯一失败是 `test_capabilities.FrontendTests.test_polling_regressions`：`collaboration_ui.js:5` 调用 `messagesNode.before(collaborationRoot)`，`test_frontend.cjs` 的 DOM mock 缺少该方法，报 `TypeError: messagesNode.before is not a function`。DeepSeek 判为前端既有独立不匹配、非失败可见性改动引入（本次未改前端）；本轮未在旧基线上重跑确认其历史起点。已登记 [BACKLOG 第 7 项](../../BACKLOG.md)。跳过项的具体原因未在本轮材料中确认。
+- 唯一失败是 `test_capabilities.FrontendTests.test_polling_regressions`：`collaboration_ui.js:5` 调用 `messagesNode.before(collaborationRoot)`，`test_frontend.cjs` 的 DOM mock 缺少该方法，报 `TypeError: messagesNode.before is not a function`。DeepSeek 判为前端既有独立不匹配、非失败可见性改动引入（本次未改前端）；本轮未在旧基线上重跑确认其历史起点。已登记 [BACKLOG 第 7 项](../BACKLOG.md)。跳过项的具体原因未在本轮材料中确认。
 - **合入处置保留意见（Codex，2026-10-29 19:42:38 +08:00）**：DeepSeek 建议该独立前端问题暂缓、不阻塞本次合入；本轮记录该 reviewer 意见，但不把登记 backlog 当作豁免。全套仍失败，尚无用户对该门槛例外的明确裁决，不写成「本地替代检查全部通过」或合入条件已满足。
 - 第 7 节已有部分本地行为回归证据，但没有五组逐项完整验收记录；第 5 组真实后端及页面验收仍未做，方向 A 不标记为完整「已验证」。两个历史卡片样本的 API 核查与用户观察仅为已有卡片的证据；浏览器 Network 轮询及展示延迟仍未单独验证。
 
