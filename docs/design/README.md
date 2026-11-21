@@ -10,7 +10,7 @@
 | 代码变更与现状图文同步 | [DIAGRAM_SYNC_RULES_DESIGN.md](DIAGRAM_SYNC_RULES_DESIGN.md) | 已编写，规范条款见 code-review-spec 1.3.0 §13.1，已合入 main |
 | 用户期望对齐规范 | [EXPECTATION_ALIGNMENT_DESIGN.md](EXPECTATION_ALIGNMENT_DESIGN.md) | 两份规范补齐期望基线、逐步核对和纠偏，实施与检查结果见正文，待非作者审核 |
 | 失败可见性 | [FAILURE_VISIBILITY_DESIGN.md](FAILURE_VISIBILITY_DESIGN.md) | 方向 A 已实现，专项回归通过；第 8 节保留当时全套 165 通过/1 失败/1 跳过；前端失败后续处置见 UI 设计第 8 节，完整真实环境验收及合入状态待补证据 |
-| Grok 适配修正 | [GROK_ADAPTATION_DESIGN.md](GROK_ADAPTATION_DESIGN.md) | entry-2105 修正已通过 Grok 独立复查，R1 关闭，R2/R3 及已核对 P2 维持关闭；真实 CLI 验收与合入状态另待证据 |
+| Grok 适配修正 | [GROK_ADAPTATION_DESIGN.md](GROK_ADAPTATION_DESIGN.md) | entry-2105 修正已通过 Grok 独立复查。entry-4095 已接入工作区文件接口和[单次诊断入口](GROK_ADAPTATION_DESIGN.md#单次-grok-工具发现诊断)，作者回归通过，现场验收和独立检视待完成。见[修订记录](../drafts/CODEX_GIT_PROFILE.md#entry-4095-检视说明修订) |
 | 项目公开README与上手路径 | [PROJECT_README_DESIGN.md](PROJECT_README_DESIGN.md) | entry-3028价值、工程边界与测试导航优化及两端复核修订完成，静态检查完成；此前隔离启动受DLL错误阻碍，运行上手仍未验收 |
 | 源码目录重组与 Web 宿主拆分 | [SOURCE_LAYOUT_DESIGN.md](SOURCE_LAYOUT_DESIGN.md) | 1.0 正式设计。实施与受控验收见 §14，根入口决定及文档归位见 §15 |
 | 工作台 UI 简化 | [UI_SIMPLIFICATION_DESIGN.md](UI_SIMPLIFICATION_DESIGN.md) | 已实施，用户报告回归通过并确认小卡片、任务区与目录面板移除；窄屏及其余浏览器交互验收待完成，证据见第 8 节 |
@@ -21,6 +21,7 @@
 
 | 时间 | 版本／议题 | 原状态或决定→新状态或决定 | 原因与证据 | 提出／决定者及来源 | 影响范围 |
 |---|---|---|---|---|---|
+| 2026-11-21 17:31:51 +08:00 | entry-4095 | 旧说明→与实现及检视结果对齐 | entry-4088；Python 本机时钟 | 用户；Codex | Grok 状态摘要，见[修订记录](../drafts/CODEX_GIT_PROFILE.md#entry-4095-检视说明修订) |
 | 2026-11-20 11:21:44 +08:00 | entry-3821／设计索引同步 | 原导航→归位后导航 | 用户批准，目录重组草稿 §17。本机时钟 | Codex 实施 | 路径及状态摘要 |
 | 2026-11-20 10:52:16 +08:00 | entry-3803／源码目录设计索引 | 现行入口摘要→增列已确认常设根文件 | [正式设计](SOURCE_LAYOUT_DESIGN.md) §15。本机时钟 | Codex 同步 | 设计索引摘要 |
 | 2026-11-20 09:35:36 +08:00 | entry-3771／源码目录设计索引 | 送审候选摘要→现行设计与入口约定 | [正式设计](SOURCE_LAYOUT_DESIGN.md) §14–§15。本机时钟 | 用户授权，Codex 整理 | 设计索引摘要 |

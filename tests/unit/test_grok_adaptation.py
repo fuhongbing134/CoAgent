@@ -20,10 +20,15 @@ def output(sid='session-1', reason='end_turn', text='answer'):
 
 class Boundaries(unittest.TestCase):
     def test_permissions_are_explicit(self):
-        normal = command('grok', 'prompt', 'cwd', None, False)
-        final = command('grok', 'prompt', 'cwd', 'id', True)
+        normal = command('grok', 'prompt', 'cwd', None, False, file_profile='files.md')
+        final = command('grok', 'prompt', 'cwd', 'id', True,
+                        file_profile='files.md', allow_git=True)
         self.assertNotIn('--always-approve', normal + final)
-        self.assertEqual(normal[normal.index('--permission-mode')+1], 'auto')
+        self.assertEqual(normal[normal.index('--permission-mode')+1], 'dontAsk')
+        self.assertEqual([normal[i + 1] for i, arg in enumerate(normal) if arg == '--allow'],
+                         ['Read', 'Grep', 'MCPTool(workbench_files__*)'])
+        self.assertNotIn('--agent', final)
+        self.assertNotIn('--allow', final)
         self.assertEqual(final[final.index('--permission-mode')+1], 'dontAsk')
         self.assertEqual(final[final.index('--deny')+1], '*')
         self.assertIn('--no-subagents', final)

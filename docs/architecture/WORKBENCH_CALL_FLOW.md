@@ -204,9 +204,11 @@ owner 调用开始时会记住用户补充数量。若回复回来时新增补�
 | 可显示最终正文 | `--output-last-message` 指定文件 | stdout 中 `type=final` 事件 | stdout 的 text 事件累积 |
 | 完成证据 | 返回码、新会话 thread_id、非空 answer 等 | 返回码及后端 final 解析等 | 无 error，end、支持的 stopReason、唯一合法 sessionId |
 | 会话 | exec 或 exec resume | 按函数的会话参数选择 | 可加 `--resume` |
-| 权限参数 | 普通取 CODEX_SANDBOX；专门 final 切 read-only | 不具有与另外两端相同的显式 final 拒绝参数 | 普通 auto；专门 final 为 dontAsk，加 `--deny *`、`--disable-web-search`；常驻 `--no-subagents` |
+| 权限参数 | 普通调用仅在解析后的工作目录匹配本机指定的 step1 根目录时请求 `step1-git`。迁至其他路径后使用 `--sandbox CODEX_SANDBOX`。专门 final 请求 `--sandbox read-only` | 不具有与另外两端相同的显式 final 拒绝参数 | 普通为 `dontAsk`，允许 `Read`、`Grep` 和绑定获准工作目录的 MCP 文件工具。仅在 entry-3917 获准仓库与分支额外允许 `Bash(git *)`。专门 final 为 `dontAsk`，加 `--deny *` 和 `--disable-web-search`。常驻 `--no-subagents` |
 
-表格只描述查到的静态参数和解析规则，不宣称三端原生权限效果完全等价。Grok 当前命令没有 `--trust` 或 `--allow Bash`；本任务没有修改它们。三个超时默认值为 1200 秒，可配置，不能当成所有部署的实测耗时。正常 owner 同身份收尾不是专门 final，不自动获得 final_delivery 参数。
+表格记录静态启动参数。entry-3917 为测试分支记录的允许项是 `Bash(git *)`、`Read` 和 `Grep`。entry-4088 两端均复现两条权限参数断言失败。后续授权与真实 CLI 生效范围待确认。[Grok 设计记录](../design/GROK_ADAPTATION_DESIGN.md#entry-3917-测试分支权限) · [修订记录](../drafts/CODEX_GIT_PROFILE.md#entry-4095-检视说明修订)
+
+三个超时默认值为 1200 秒，可配置。正常 owner 同身份收尾不设置 `final_delivery`。
 
 模型内部工具调用发生在 CLI 运行期间，例如读文件或执行命令，由后端权限决定。上述流程只说明工作台如何启动、等待、记录和接收；不展开模型推理内部步骤，也不声称能观测全部服务端行为。
 
@@ -278,3 +280,9 @@ flowchart TD
 验证边界：未运行浏览器/真实CLI/取消超时重启注入；未动态观察 queued/running 的全部写入路径；未确认部署环境 session resolver 选择。当前未找到 PATH 中的 mmdc，未执行 Mermaid 解析器或渲染，图的语法与视觉布局仍待验证。只做文本与链接检查，不以围栏数量代替渲染成功。
 
 变更记录：2026-11-11，entry-2903 完成三份独立原稿 → 三份互审 → 本统一稿与逐项处理表 → DeepSeek Harness、Grok 终审同意 → Codex 收口；所有原稿保留，修正在本稿体现。两端提出的“纠正并终审前不宣布最终共识”条件已满足，无阻断异议；源码静态核对层面的共识已形成，上述验证边界继续保留。entry-2916 依据该终审及收口记录同步正文与索引状态。
+
+## 变更历史
+
+| 时间 | 版本／议题 | 原状态或决定→新状态或决定 | 原因与证据 | 提出／决定者及来源 | 影响范围 |
+|---|---|---|---|---|---|
+| 2026-11-21 17:31:51 +08:00 | entry-4095 | 旧说明→与实现及检视结果对齐 | entry-4088；Python 本机时钟 | 用户；Codex | 权限说明及部署范围，见[修订记录](../drafts/CODEX_GIT_PROFILE.md#entry-4095-检视说明修订) |

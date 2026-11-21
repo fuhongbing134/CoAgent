@@ -1,6 +1,8 @@
 import http.client
 import json
+import os
 import shutil
+import sqlite3
 import subprocess
 import tempfile
 import threading
@@ -154,6 +156,42 @@ class HttpTests(unittest.TestCase):
                 if explicit:
                     self.assertIn('刷新', error)
             db.assert_not_called()
+
+    def test_grok_diagnostic_arms_only_first_matching_ordinary_message(self):
+        active = {}
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / 'route.db'
+
+            def connect(timeout=10):
+                return sqlite3.connect(path, timeout=timeout)
+
+            with connect() as db:
+                db.execute("""CREATE TABLE workbench_messages (
+                    id INTEGER PRIMARY KEY, conversation_id, sender_id, recipient_id,
+                    content, created_at, status)""")
+            db.close()
+            handler = web_chat.ChatHandler
+            with patch.object(handler, 'connect_workbench', new=staticmethod(connect)), \
+                 patch.object(handler, 'ACTIVE_RUNS', active), \
+                 patch.object(handler, 'register_active_run', side_effect=lambda message_id, *_: active.update({message_id: {}})), \
+                 patch.object(handler, 'run_agent_task'), \
+                 patch.object(handler, 'resolve_grok_command', return_value='fake-grok'), \
+                 patch.dict(os.environ, {'WORKBENCH_GROK_DIAGNOSTIC_CONVERSATION': 'armed'}):
+                for conversation, content, expected in (
+                    ('normal', 'hello', False),
+                    ('named', '@Grok hello', False),
+                    ('armed', 'hello', True),
+                    ('armed', 'hello again', False),
+                ):
+                    status, data = self.request('POST', '/api/messages', {'Content-Type': 'application/json'},
+                                                json.dumps({'conversation_id': conversation, 'content': content,
+                                                            'recipients': ['grok']}))
+                    self.assertEqual(status, 202, data)
+                    message_id = json.loads(data)['assistant_message_ids']['grok']
+                    self.assertEqual(active.pop(message_id).get('grok_diagnostic', False), expected)
+                    with connect() as db:
+                        db.execute("UPDATE workbench_messages SET status='completed' WHERE id=?", (message_id,))
+                    db.close()
 
     def test_cli_discovery_is_cached_until_ttl(self):
         with patch.object(web_chat, "resolve_codex_command", return_value="codex") as codex, \
