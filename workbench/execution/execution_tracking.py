@@ -213,6 +213,16 @@ class ExecutionTracker:
             db.execute('UPDATE execution_runs SET cancel_requested=1 WHERE run_id=?', (token.run_id,))
             return True
 
+    def record_grok_diagnostic(self, token, summary):
+        with self._transaction() as db:
+            run, _ = self._owned(db, token)
+            if run['agent_id'] != 'grok' or run['source_kind'] != 'workbench':
+                raise ValueError('Grok diagnostic requires an ordinary Grok run')
+            snapshot = json.loads(run['config_snapshot'])
+            snapshot['grok_diagnostic'] = summary
+            db.execute('UPDATE execution_runs SET config_snapshot=? WHERE run_id=?',
+                       (json.dumps(snapshot, ensure_ascii=False, allow_nan=False), token.run_id))
+
     def claim_session(self, token, identity, *, adoption=None, tools_disabled=False):
         """Claim only after domain reservation. adoption is an explicit reviewed candidate.
 

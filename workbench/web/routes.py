@@ -1,6 +1,7 @@
 """HTTP routes for the local workbench."""
 
 import json
+import os
 import secrets
 import sqlite3
 import threading
@@ -24,7 +25,7 @@ class ChatHandler(WorkbenchRequestHandler):
         return {
             "probe": self.CAPABILITY_PROBES.snapshot(self.resolve_working_directory(conversation_id)),
             "agent_configuration": [
-                {"id": "codex", "name": "Codex", "configuration": f"--sandbox {self.CODEX_SANDBOX}",
+                {"id": "codex", "name": "Codex", "configuration": f"step1 请求 step1-git；其他目录 {self.CODEX_SANDBOX}；最终汇总 read-only",
                  "cli_found": available["codex_cli_available"]},
                 {"id": "deepseek-harness", "name": "DeepSeek Harness", "configuration": f"--profile {self.DSH_PROFILE}; 未显式传入 sandbox 参数，其他策略未知",
                  "cli_found": available["dsh_cli_available"]},
@@ -243,8 +244,9 @@ class ChatHandler(WorkbenchRequestHandler):
             self.send_json(400, {"error": "conversation_id 不能为空且不能超过 200 个字符"})
             return
         recipients, agent_prompts = self.resolve_message_recipients(content)
+        collaboration = route_message(content)[1]
         try:
-            recipients = requested_recipients(recipients, payload.get('recipients'), route_message(content)[1])
+            recipients = requested_recipients(recipients, payload.get('recipients'), collaboration)
             agent_prompts = {key: agent_prompts[key] for key in recipients}
         except ValueError as error:
             self.send_json(400, {'error': str(error)})
@@ -315,6 +317,19 @@ class ChatHandler(WorkbenchRequestHandler):
                 self.send_json(409, {"error": label + " 的上一条任务尚未完全结束，请稍后重试。"})
                 return
 
+            grok_diagnostic = (
+                conversation_id == os.environ.get("WORKBENCH_GROK_DIAGNOSTIC_CONVERSATION")
+                and payload.get("recipients") == ["grok"]
+                and recipients == ["grok"]
+                and not collaboration
+                and not route_message(agent_prompts["grok"])[1]
+                and self.capability_host_allowed()
+                and self.client_address[0] in {"127.0.0.1", "::1"}
+                and not connection.execute(
+                    "SELECT 1 FROM workbench_messages WHERE conversation_id=? LIMIT 1",
+                    (conversation_id,),
+                ).fetchone()
+            )
             created_at = self.utc_now()
             user_recipient_id = "all" if len(recipients) > 1 else recipients[0]
             user_cursor = connection.execute(
@@ -343,6 +358,9 @@ class ChatHandler(WorkbenchRequestHandler):
 
         for agent_id in recipients:
             self.register_active_run(assistant_message_ids[agent_id], conversation_id, agent_id)
+        if grok_diagnostic:
+            with self.ACTIVE_RUNS_LOCK:
+                self.ACTIVE_RUNS[assistant_message_ids["grok"]]["grok_diagnostic"] = True
 
         self.send_json(202, {
             "conversation_id": conversation_id,

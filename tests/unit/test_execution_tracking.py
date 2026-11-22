@@ -3,6 +3,7 @@ from concurrent.futures import ThreadPoolExecutor
 from contextlib import closing
 from dataclasses import replace
 from pathlib import Path
+import json
 import sqlite3
 import tempfile
 import threading
@@ -47,6 +48,21 @@ class ExecutionTrackingTests(unittest.TestCase):
         self.assertEqual((domain['state'], domain['owner_run_id'], domain['instance_id']), ('idle', None, None))
         with self.assertRaises(ValueError):
             self.tracker.finish_run(token, outcome='failed')
+
+    def test_grok_diagnostic_remains_bound_to_its_message_and_run(self):
+        token = self.begin(agent_id='grok', source_kind='workbench',
+                           source_job_id=None, source_call_id=None, source_message_id=17)
+        other = self.begin()
+        self.tracker.set_launch_snapshot(token, {'launch_mode': 'new'})
+        self.tracker.mark_running(token)
+        summary = {'exit_code': 0, 'server_events': ['started']}
+        self.tracker.record_grok_diagnostic(token, summary)
+        self.tracker.finish_run(token, outcome='completed', exit_evidence='confirmed')
+        rows = {row['run_id']: row for row in self.rows('execution_runs')}
+        self.assertEqual(rows[token.run_id]['source_message_id'], 17)
+        self.assertEqual(json.loads(rows[token.run_id]['config_snapshot']),
+                         {'launch_mode': 'new', 'grok_diagnostic': summary})
+        self.assertNotIn('grok_diagnostic', json.loads(rows[other.run_id]['config_snapshot']))
 
     def test_unknown_retains_domain_until_confirmed(self):
         token = self.begin()

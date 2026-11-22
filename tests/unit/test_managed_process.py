@@ -44,8 +44,8 @@ class ManagedProcessTests(unittest.TestCase):
     def run_code(self, source, **kwargs):
         return ManagedProcess().run(self.command(source), timeout=5, **kwargs)
 
-    def hold_process(self, pid):
-        handle = self.api.check(self.api.k.OpenProcess(0x100000, False, pid))
+    def hold_process(self, pid, access=0x100000):
+        handle = self.api.check(self.api.k.OpenProcess(access, False, pid))
         self.addCleanup(self.api.k.CloseHandle, handle)
         return handle
 
@@ -201,16 +201,64 @@ class ManagedProcessTests(unittest.TestCase):
         self.assertFalse(result.dispatch_allowed)
         self.assert_exited(handles[0])
 
-    def test_breakaway_is_rejected(self):
-        marker = self.directory / 'escaped'
-        child = f"open({str(marker)!r},'w').write('escaped')"
-        source = ("import subprocess,sys;"
-                  f"\ntry: subprocess.Popen([sys.executable,'-B','-c',{child!r}],creationflags=0x01000000)\n"
-                  "except OSError: print('blocked')\n"
-                  "else: sys.exit(6)\n")
-        result = self.run_code(source)
-        self.assertEqual((result.returncode, result.stdout.strip()), (0, b'blocked'))
-        self.assertFalse(marker.exists())
+    def test_breakaway_cannot_escape_managed_job(self):
+        request = self.directory / 'breakaway-request'
+        running = self.directory / 'breakaway-running'
+        child = (
+            "import os,sys,time; from pathlib import Path;"
+            "Path(sys.argv[1]).write_text(str(os.getpid())+'\\n'); time.sleep(12)"
+        )
+        source = (
+            "import subprocess,sys,time; from pathlib import Path\n"
+            "request = Path(sys.argv[1])\n"
+            "try:\n"
+            f" child = subprocess.Popen([sys.executable,'-B','-c',{child!r},sys.argv[2]],"
+            "creationflags=subprocess.CREATE_BREAKAWAY_FROM_JOB)\n"
+            "except OSError as error:\n"
+            " if error.winerror != 5: raise\n"
+            " request.write_text('blocked\\n')\n"
+            "else:\n"
+            " request.write_text(str(child.pid)+'\\n')\n"
+            " time.sleep(12)\n"
+        )
+        handles = []
+        membership = {}
+        attempts = []
+
+        def read_marker(path):
+            wait_for(lambda: path.exists() and path.read_text().endswith('\n'))
+            return path.read_text().strip()
+
+        def inspect_child(stage, owner):
+            if stage != 'after_resume':
+                return
+            attempt = read_marker(request)
+            attempts.append(attempt)
+            if attempt == 'blocked':
+                return
+            # A venv can break away from its inner launcher Job while remaining
+            # in our Job. Check both the launcher and its running interpreter.
+            for pid in dict.fromkeys((int(attempt), int(read_marker(running)))):
+                handle = self.hold_process(pid, 0x101000)  # synchronize + query
+                handles.append(handle)
+                inside = W.BOOL()
+                self.api.check(self.api.k.IsProcessInJob(handle, owner.job_handle, C.byref(inside)))
+                membership[pid] = bool(inside.value)
+            owner.cancel()
+
+        result = ManagedProcess().run(
+            [*self.command(source), str(request), str(running)], timeout=5, on_stage=inspect_child,
+        )
+        self.assertEqual(len(attempts), 1, result)
+        if attempts[0] == 'blocked':
+            self.assertEqual((result.outcome, result.returncode, result.exit_evidence),
+                             ('completed', 0, 'confirmed'), result)
+            self.assertFalse(running.exists())
+        else:
+            self.assertEqual((result.outcome, result.exit_evidence), ('cancelled', 'confirmed'), result)
+            self.assertTrue(membership and all(membership.values()), membership)
+            for handle in handles:
+                self.assertEqual(self.api.k.WaitForSingleObject(handle, 0), 0)
 
     def test_job_list_or_creation_failure_has_no_fallback(self):
         process = ManagedProcess()
@@ -289,10 +337,10 @@ class ManagedProcessTests(unittest.TestCase):
             for fd in descriptors:
                 os.set_inheritable(fd, True)
             handles = [msvcrt.get_osfhandle(fd) for fd in descriptors]
-            observed = []
-
-            def created(process):
-                observed.append(process.job_handle)
+            lock_paths = {
+                os.path.normcase(str(path.resolve()))
+                for path in (database.with_name(database.name + '.service.lock'), barrier.path)
+            }
 
             # Child receives numeric handles over stdin set before launch; the
             # file-path comparison avoids mistaking a reused handle for leakage.
@@ -300,15 +348,35 @@ class ManagedProcessTests(unittest.TestCase):
                       "k=c.WinDLL('kernel32',use_last_error=True);"
                       "k.GetFinalPathNameByHandleW.argtypes=[w.HANDLE,w.LPWSTR,w.DWORD,w.DWORD];"
                       "k.GetFinalPathNameByHandleW.restype=w.DWORD;"
+                      "reports=[];"
                       "\nfor h in json.loads(sys.stdin.read()):\n"
                       " b=c.create_unicode_buffer(32768)\n"
-                      " n=k.GetFinalPathNameByHandleW(h,b,len(b),0)\n"
-                      " print(b.value if n else 'not inherited')\n")
+                      " try:\n"
+                      "  n=k.GetFinalPathNameByHandleW(h,b,len(b),0)\n"
+                      "  if not n: raise c.WinError(c.get_last_error())\n"
+                      " except OSError as error:\n"
+                      "  code=getattr(error,'winerror',None)\n"
+                      "  if not isinstance(code,int) or (code & 0xffffffff) not in (6,0xc0000008): raise\n"
+                      "  reports.append({'handle':h,'invalid_handle':code & 0xffffffff})\n"
+                      "  continue\n"
+                      " if n>=len(b): raise RuntimeError('Final path exceeds the buffer')\n"
+                      " reports.append({'handle':h,'path':b.value})\n"
+                      "print(json.dumps(reports))\n")
             try:
-                result = self.run_code(source, input=json.dumps(handles), on_created=created)
+                result = self.run_code(source, input=json.dumps(handles))
                 self.assertEqual(result.returncode, 0, result.stderr)
-                self.assertNotIn(b'.service.lock', result.stdout)
-                self.assertNotIn(b'.migration.lock', result.stdout)
+                reports = json.loads(result.stdout)
+                self.assertEqual([report['handle'] for report in reports], handles)
+                for report in reports:
+                    if 'invalid_handle' in report:
+                        self.assertIn(report['invalid_handle'], (6, 0xc0000008))
+                    else:
+                        path = report['path']
+                        if path.startswith('\\\\?\\UNC\\'):
+                            path = '\\\\' + path[8:]
+                        else:
+                            path = path.removeprefix('\\\\?\\')
+                        self.assertNotIn(os.path.normcase(os.path.normpath(path)), lock_paths)
                 self.assertEqual(result.exit_evidence, 'confirmed')
             finally:
                 for fd, flag in zip(descriptors, old_flags):

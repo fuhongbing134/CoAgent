@@ -1,11 +1,14 @@
 """Focused checks for the Grok agent wiring; no real Grok CLI is started."""
 import json
 import os
+import subprocess
 import unittest
 from pathlib import Path
+from types import SimpleNamespace
 from unittest import mock
 
 from workbench.agents import agent_registry
+from workbench.adapters.web_backends import run_grok
 import web_chat
 from workbench.collaboration.collaboration_entry import route_message
 from workbench.execution.execution_inspection import canonical_adapter
@@ -29,9 +32,15 @@ class GrokAgentTests(unittest.TestCase):
 
     def test_command_construction(self):
         p, cwd = Path('p.txt'), Path('w')
-        new = web_chat.build_grok_command('grok', p, cwd, None, False)
+        options = dict(file_profile=Path('files.md'), allow_git=True)
+        new = web_chat.build_grok_command('grok', p, cwd, None, False, **options)
         self.assertEqual(new, ['grok', '--prompt-file', 'p.txt', '--output-format', 'streaming-json',
-                               '--cwd', 'w', '--permission-mode', 'auto', '--no-subagents'])
+                               '--cwd', 'w', '--permission-mode', 'dontAsk',
+                               '--allow', 'Read', '--allow', 'Grep', '--allow', 'Bash(git *)',
+                               '--agent', 'files.md', '--allow', 'MCPTool(workbench_files__*)',
+                               '--no-subagents'])
+        resumed = web_chat.build_grok_command('grok', p, cwd, 'abc-1', False, **options)
+        self.assertEqual(resumed, new + ['--resume', 'abc-1'])
         self.assertNotIn('--always-approve', new)
         self.assertNotIn('--deny', new)
         final = web_chat.build_grok_command('grok', p, cwd, 'abc-1', True)
@@ -57,6 +66,63 @@ class GrokAgentTests(unittest.TestCase):
     def test_resolve_command(self):
         with mock.patch.dict(os.environ, {'GROK_CLI': 'definitely-missing-grok-xyz'}):
             self.assertIsNone(web_chat.resolve_grok_command())
+
+    def test_single_run_diagnostic_isolation_and_cleanup(self):
+        for enabled, session, final, failure in (
+            (False, None, False, False),
+            (True, 'prior', False, False),
+            (True, None, True, False),
+            (True, None, False, False),
+            (True, None, False, True),
+        ):
+            with self.subTest(enabled=enabled, session=session, final=final, failure=failure):
+                execution = SimpleNamespace(working_directory=Path.cwd(), token=object(),
+                                            tracker=mock.Mock(), result=None)
+                active = {'execution': execution, 'grok_diagnostic': enabled,
+                          'cancel_requested': False, 'state_lock': mock.MagicMock()}
+                diagnostic = enabled and not session and not final
+                paths = []
+
+                def process(_message_id, command, **_options):
+                    self.assertEqual('--debug' in command, diagnostic)
+                    self.assertEqual('--debug-file' in command, diagnostic)
+                    self.assertEqual('--agent' in command, not final)
+                    self.assertEqual('--deny' in command, final)
+                    if diagnostic:
+                        path = Path(command[command.index('--debug-file') + 1])
+                        server_path = path.with_name('workbench-files.events')
+                        paths.extend((path, server_path))
+                        path.write_text(
+                            '{"event":"tools_registered","server":"workbench_files","status":"ok",'
+                            '"tools":["workbench_files__delete_file","private-tool"],"prompt":"secret"}\n',
+                            encoding='utf-8',
+                        )
+                        server_path.write_text('started\nprivate-content\ntools_list_response\n', encoding='ascii')
+                    if failure:
+                        raise subprocess.TimeoutExpired(command, 1)
+                    return subprocess.CompletedProcess(command, 0, '', '')
+
+                reply = run_grok(
+                    'conversation', 'prompt', 17, 16, AGENT_GROK_TIMEOUT_SECONDS=1,
+                    COLLAB_CONTEXT=SimpleNamespace(final_delivery=final), GROK_SESSION_KEY='grok',
+                    active_run=lambda _: active, build_agent_prompt=lambda *_: 'example',
+                    build_grok_command=web_chat.build_grok_command, is_run_cancelled=lambda _: False,
+                    parse_grok_output=lambda _: ('answer', session, [], []),
+                    prepare_execution_session=lambda *_: session, resolve_grok_command=lambda: 'fake-grok',
+                    run_managed_process=process, save_agent_session_id=mock.Mock(),
+                    touch_agent_last_seen=mock.Mock(), worker_reply=lambda *args: args,
+                )
+                self.assertEqual(reply[2], 'failed' if failure else 'completed')
+                self.assertEqual(execution.tracker.record_grok_diagnostic.call_count, int(diagnostic))
+                if diagnostic:
+                    token, summary = execution.tracker.record_grok_diagnostic.call_args.args
+                    self.assertIs(token, execution.token)
+                    self.assertEqual(summary['raw_cleanup'], 'removed')
+                    self.assertEqual(summary['client_tools'], ['workbench_files__delete_file'])
+                    self.assertEqual(summary['server_events'], ['started', 'tools_list_response'])
+                    self.assertNotIn('private', json.dumps(summary))
+                    self.assertNotIn('secret', json.dumps(summary))
+                    self.assertTrue(all(not path.exists() for path in paths))
 
 
 if __name__ == '__main__':

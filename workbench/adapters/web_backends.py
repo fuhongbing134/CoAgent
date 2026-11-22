@@ -6,6 +6,7 @@ import json
 import os
 import shutil
 import subprocess
+import sys
 import tempfile
 from pathlib import Path
 
@@ -13,6 +14,7 @@ from workbench.adapters.deepseek_command import build_dsh_command
 from workbench.adapters.grok_adapter import command as grok_command_args
 from workbench.adapters.grok_adapter import diagnostic as grok_diagnostic
 from workbench.adapters.grok_adapter import parse_output as grok_parse_output
+from workbench.adapters.grok_diagnostics import capture as capture_grok_diagnostic
 from workbench.execution.execution_runtime import format_execution_error
 from workbench.execution.web_runs import AgentRunCancelled
 
@@ -102,20 +104,26 @@ def run_codex(
         )
         with tempfile.TemporaryDirectory(prefix="agent-workbench-") as temporary_directory:
             answer_path = Path(temporary_directory) / "codex-answer.txt"
-            if thread_id:
-                command = [
-                    codex_command, "exec", "--sandbox", ("read-only" if getattr(COLLAB_CONTEXT, "final_delivery", False) else CODEX_SANDBOX),
-                    "--cd", str(working_directory), "resume",
-                    "--json", "--skip-git-repo-check", "--output-last-message", str(answer_path),
-                    thread_id, "-",
-                ]
+            requested_profile = None
+            if getattr(COLLAB_CONTEXT, "final_delivery", False):
+                permission_args = ["--sandbox", "read-only"]
+            elif working_directory.resolve() == Path(
+                "C:/Users/FHB/Documents/Codex/agent-lab/step1"
+            ).resolve():
+                requested_profile = "step1-git"
+                permission_args = ["-c", 'default_permissions="step1-git"']
             else:
-                command = [
-                    codex_command, "exec", "--sandbox", ("read-only" if getattr(COLLAB_CONTEXT, "final_delivery", False) else CODEX_SANDBOX),
-                    "--json", "--skip-git-repo-check",
-                    "--cd", str(working_directory),
-                    "--output-last-message", str(answer_path), "-",
-                ]
+                permission_args = ["--sandbox", CODEX_SANDBOX]
+
+            command = [codex_command, "exec", *permission_args, "--cd", str(working_directory)]
+            if thread_id:
+                command.append("resume")
+            command.extend([
+                "--json", "--skip-git-repo-check", "--output-last-message", str(answer_path),
+            ])
+            if thread_id:
+                command.append(thread_id)
+            command.append("-")
 
             result = run_managed_process(
                 assistant_message_id,
@@ -125,6 +133,7 @@ def run_codex(
                 input=agent_prompt,
                 diagnostic_metadata={
                     "agent_id": "codex",
+                    "permission_profile_requested": requested_profile,
                     "transport": "stdin",
                     "session_mode": "resume" if thread_id else "new",
                     "prompt_utf8_bytes": len(agent_prompt.encode("utf-8")),
@@ -286,9 +295,24 @@ def run_deepseek_harness(
 
 
 def build_grok_command(grok_command: str, prompt_path: Path, working_directory: Path,
-                       session_id: str | None, final_delivery: bool) -> list[str]:
+                       session_id: str | None, final_delivery: bool, *,
+                       file_profile=None, allow_git=False) -> list[str]:
     """Explicit tool approvals; final denies tools, not a Windows OS sandbox."""
-    return grok_command_args(grok_command, prompt_path, working_directory, session_id, final_delivery)
+    return grok_command_args(grok_command, prompt_path, working_directory, session_id, final_delivery,
+                             file_profile=file_profile, allow_git=allow_git)
+
+
+def grok_test_git_allowed(root: Path) -> bool:
+    if root != Path(__file__).resolve().parents[2]:
+        return False
+    try:
+        branch = subprocess.run(
+            ['git', 'symbolic-ref', '--quiet', '--short', 'HEAD'], cwd=root,
+            capture_output=True, text=True, timeout=5, check=True,
+        )
+    except (OSError, subprocess.SubprocessError):
+        return False
+    return branch.stdout.strip() == 'feature/GitDiscussion'
 
 
 def parse_grok_output(stdout: str) -> tuple[str, str | None, list[str], list[str]]:
@@ -318,7 +342,9 @@ def run_grok(
 ) -> WorkerResult:
     try:
         touch_agent_last_seen("grok")
-        working_directory = active_run(assistant_message_id)['execution'].working_directory
+        run = active_run(assistant_message_id)
+        execution = run['execution']
+        working_directory = execution.working_directory
         grok_command = resolve_grok_command()
         if not grok_command:
             raise RuntimeError(
@@ -332,11 +358,34 @@ def run_grok(
         if session_id and not all(char.isalnum() or char in '._-' for char in session_id):
             raise RuntimeError('Invalid Grok resume ID')
         final_delivery = getattr(COLLAB_CONTEXT, "final_delivery", False)
-        with tempfile.TemporaryDirectory(prefix="agent-workbench-") as temporary_directory:
+        diagnostic_enabled = run.get('grok_diagnostic', False) and not final_delivery and not session_id
+        with (
+            tempfile.TemporaryDirectory(prefix="agent-workbench-") as temporary_directory,
+            capture_grok_diagnostic(execution, Path(temporary_directory), diagnostic_enabled) as evidence,
+        ):
             prompt_path = Path(temporary_directory) / "grok-prompt.txt"
+            file_options = {}
+            if not final_delivery:
+                root = Path(working_directory).resolve(strict=True)
+                profile = prompt_path.with_name('workbench-files.md')
+                server = {'command': sys.executable, 'args': [
+                    '-X', 'utf8', str(Path(__file__).with_name('workspace_files.py').resolve()), str(root),
+                ]}
+                if evidence is not None:
+                    server['args'].append(str(evidence['server_path']))
+                profile.write_text(
+                    '---\nname: workbench-files\ndescription: Workbench workspace file access\n'
+                    f'mcpServers: {json.dumps([{"workbench_files": server}])}\n---\n'
+                    'Use the workbench_files tools when creating, editing, or deleting files.\n',
+                    encoding='utf-8',
+                )
+                file_options = {'file_profile': profile, 'allow_git': grok_test_git_allowed(root)}
             prompt_path.write_bytes(agent_prompt.encode("utf-8"))
             command = build_grok_command(grok_command, prompt_path, working_directory,
-                                         session_id, final_delivery)
+                                         session_id, final_delivery, **file_options)
+            if evidence is not None:
+                command.extend(['--debug', '--debug-file', str(evidence['debug_path'])])
+                evidence['command'] = command
             result = run_managed_process(
                 assistant_message_id,
                 command,
@@ -356,6 +405,8 @@ def run_grok(
         if session_id and new_session_id != session_id:
             error_messages.append('Grok resumed session ID mismatch')
         if result.returncode != 0 or error_messages:
+            if diagnostic_enabled:
+                raise RuntimeError("Grok CLI 未通过完成校验，请查看该次运行的脱敏诊断摘要。")
             diagnostic = grok_diagnostic((result.stderr or "").strip())
             diagnostic = next(iter(error_messages), "") or diagnostic or "Grok CLI 执行失败"
             if permission_notes:
@@ -372,7 +423,7 @@ def run_grok(
                     raise AgentRunCancelled()
                 if run['execution'].session_claim is None:
                     save_agent_session_id(conversation_id, GROK_SESSION_KEY, new_session_id)
-        if permission_notes:
+        if permission_notes and not diagnostic_enabled:
             answer = ("[工作台提示] CLI 诊断（已截断并脱敏）：\n"
                       + "\n".join(permission_notes) + '\n\n' + answer)
         return worker_reply(assistant_message_id, answer, "completed")

@@ -257,7 +257,10 @@ def run_managed_process(message_id: int, command: list[str], active_run, **kwarg
                     working_directory=str(execution.working_directory), workspace_version=0,
                     launch_mode=metadata.get('session_mode', 'resume' if '--session-id' in command or 'resume' in command else 'new'))
     if run['agent_id'] == 'codex':
-        snapshot['sandbox'] = command[command.index('--sandbox') + 1]
+        if '--sandbox' in command:
+            snapshot['sandbox'] = command[command.index('--sandbox') + 1]
+        else:
+            snapshot['permission_profile_requested'] = metadata.get('permission_profile_requested')
     elif run['agent_id'] == 'grok':
         snapshot['permission_mode'] = command[command.index('--permission-mode') + 1]
         snapshot['tools_denied'] = '--deny' in command and command[command.index('--deny') + 1] == '*'
@@ -296,6 +299,12 @@ def run_managed_process(message_id: int, command: list[str], active_run, **kwarg
     if result.outcome == 'timeout':
         raise subprocess.TimeoutExpired(command, kwargs.get('timeout'))
     if result.outcome != 'completed' or result.exit_evidence != 'confirmed':
-        raise RuntimeError('Managed process failed: ' + (result.error_type or result.outcome))
+        message = 'Managed process failed: ' + (result.error_type or result.outcome)
+        if run['agent_id'] == 'grok' and result.outcome == 'failed' and result.exit_evidence == 'confirmed':
+            from workbench.adapters.grok_adapter import diagnostic
+
+            stderr = diagnostic(result.stderr.decode('utf-8', errors='replace').strip())
+            message += f" (returncode={result.returncode}, stderr={stderr or '<empty>'})"
+        raise RuntimeError(message)
     return subprocess.CompletedProcess(command, result.returncode,
         result.stdout.decode('utf-8', errors='replace'), result.stderr.decode('utf-8', errors='replace'))

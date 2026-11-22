@@ -44,10 +44,17 @@ def parse_output(stdout):
     return ''.join(texts).strip(), next(iter(ids)) if len(ids) == 1 else None, errors, notes
 
 
-def command(executable, prompt_path, cwd, session_id, final_delivery):
+def command(executable, prompt_path, cwd, session_id, final_delivery, *,
+            file_profile=None, allow_git=False):
     args = [executable, '--prompt-file', str(prompt_path), '--output-format', 'streaming-json',
-            '--cwd', str(cwd), '--permission-mode', 'dontAsk' if final_delivery else 'auto',
-            '--no-subagents']
+            '--cwd', str(cwd), '--permission-mode', 'dontAsk']
+    if not final_delivery:
+        args += ['--allow', 'Read', '--allow', 'Grep']
+        if allow_git:
+            args += ['--allow', 'Bash(git *)']
+        if file_profile:
+            args += ['--agent', str(file_profile), '--allow', 'MCPTool(workbench_files__*)']
+    args += ['--no-subagents']
     if session_id:
         args += ['--resume', session_id]
     if final_delivery:
