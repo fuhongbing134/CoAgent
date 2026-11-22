@@ -7,6 +7,7 @@ import tempfile
 import unittest
 
 from workbench.adapters import workspace_files
+from tests.fixtures.link_fixtures import prepared_link_fixture
 
 
 class WorkspaceFilesTests(unittest.TestCase):
@@ -40,14 +41,24 @@ class WorkspaceFilesTests(unittest.TestCase):
         self.assertEqual((self.root / '.gitignore').read_text(encoding='utf-8'), 'ignored.txt')
 
     def test_hard_link_is_rejected(self):
-        original = self.root / 'note.txt'
-        original.write_text('original', encoding='utf-8')
-        os.link(original, self.root / 'sub' / 'alias.txt')
+        prepared = prepared_link_fixture('workspace-hardlink')
+        root = prepared if prepared is not None else self.root
+        original = root / 'note.txt'
+        alias = root / 'sub' / 'alias.txt'
+        if prepared is None:
+            original.write_text('original', encoding='utf-8')
+            os.link(original, alias)
+        self.assertTrue(original.samefile(alias))
+        self.assertEqual(original.stat().st_nlink, 2)
+        self.assertEqual(alias.stat().st_nlink, 2)
+        before = original.read_bytes()
         for operation in ('edit_file', 'delete_file'):
-            with self.subTest(operation=operation), self.assertRaises(ValueError):
-                self.call(operation, 'sub/alias.txt', 'replacement')
-        self.assertEqual(original.read_text(encoding='utf-8'), 'original')
-        self.assertTrue((self.root / 'sub' / 'alias.txt').exists())
+            with self.subTest(operation=operation):
+                with self.assertRaisesRegex(ValueError, 'one link'):
+                    workspace_files.operate(root, operation, {'path': 'sub/alias.txt', 'text': 'replacement'})
+                self.assertEqual(original.read_bytes(), before)
+                self.assertTrue(alias.samefile(original))
+                self.assertEqual(alias.stat().st_nlink, 2)
 
     @unittest.skipUnless(os.name == 'nt', 'Windows directory sharing semantics')
     def test_open_workspace_directory_cannot_be_renamed(self):

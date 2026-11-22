@@ -1,4 +1,5 @@
 import os
+import stat
 import sqlite3
 import subprocess
 import sys
@@ -10,6 +11,7 @@ from unittest.mock import patch
 
 import web_chat as web
 from workbench.execution.service_instance import ServiceInstanceLock
+from tests.fixtures.link_fixtures import prepared_link_fixture
 
 
 class InstanceTests(unittest.TestCase):
@@ -82,26 +84,46 @@ class InstanceTests(unittest.TestCase):
 
     @unittest.skipUnless(os.name == 'nt', 'Windows junction test')
     def test_junction_alias(self):
-        alias = self.path.parent / 'junction'
-        result = subprocess.run(['cmd', '/c', 'mklink', '/J', str(alias), str(self.path.parent)], capture_output=True, text=True)
-        self.assertEqual(result.returncode, 0, result.stderr)
+        prepared = prepared_link_fixture('instance-junction')
+        database = prepared / 'real' / 'isolated.db' if prepared is not None else self.path
+        alias = prepared / 'alias' if prepared is not None else self.path.parent / 'junction'
+        if prepared is None:
+            result = subprocess.run(['cmd', '/c', 'mklink', '/J', str(alias), str(database.parent)], capture_output=True, text=True)
+            self.assertEqual(result.returncode, 0, result.stderr)
         try:
-            with ServiceInstanceLock(self.path):
-                with self.assertRaises(RuntimeError):
-                    with ServiceInstanceLock(alias / self.path.name): pass
+            self.assertEqual(alias.lstat().st_reparse_tag, stat.IO_REPARSE_TAG_MOUNT_POINT)
+            self.assertTrue(alias.samefile(database.parent))
+            self.assertTrue((alias / database.name).samefile(database))
+            self.assertEqual(database.stat().st_nlink, 1)
+            before = database.read_bytes()
+            with ServiceInstanceLock(database):
+                with self.assertRaisesRegex(RuntimeError, 'execution-service lock'):
+                    with ServiceInstanceLock(alias / database.name): pass
+            self.assertEqual(database.read_bytes(), before)
         finally:
-            os.rmdir(alias)
+            if prepared is None:
+                os.rmdir(alias)
 
-    def test_alias_and_hardlink(self):
+    def test_path_alias(self):
         alias = self.path.parent / '.' / self.path.name.upper() if os.name=='nt' else self.path
         with ServiceInstanceLock(self.path):
             with self.assertRaises(RuntimeError):
                 with ServiceInstanceLock(alias): pass
-        linked = self.path.with_name('linked.db')
-        os.link(self.path,linked)
-        for path in (self.path,linked):
+
+    def test_hardlink_rejected(self):
+        prepared = prepared_link_fixture('instance-hardlink')
+        database = prepared / 'isolated.db' if prepared is not None else self.path
+        linked = database.with_name('linked.db')
+        if prepared is None:
+            os.link(database, linked)
+        self.assertTrue(database.samefile(linked))
+        self.assertEqual(database.stat().st_nlink, 2)
+        self.assertEqual(linked.stat().st_nlink, 2)
+        before = database.read_bytes()
+        for path in (database, linked):
             with self.assertRaisesRegex(RuntimeError,'hard link'):
                 with ServiceInstanceLock(path): pass
+        self.assertEqual(database.read_bytes(), before)
 
 
 if __name__ == '__main__': unittest.main()

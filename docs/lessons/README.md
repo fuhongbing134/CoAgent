@@ -10,6 +10,7 @@
 |---|---|
 | [BENCHMARK_RESTART_LESSONS.md](BENCHMARK_RESTART_LESSONS.md) | 正式记录1.0.1；五项教训；两方已检视相应版本，发现项已作者修正，末次修订未另行独立复查，行为效果未验证 |
 | [PROCESS_GOVERNANCE_LESSONS.md](PROCESS_GOVERNANCE_LESSONS.md) | 文档草稿追溯、编码与检视职责、需求分析及失败交接的正式教训记录；独立复核发现项已修正收口，规范未修改，效果未验证 |
+| [WINDOWS_VENV_DLL_MXC_LESSONS.md](WINDOWS_VENV_DLL_MXC_LESSONS.md) | 正式记录 1.0，涵盖本机 MXC 验收、同链对照、宿主侧取证及六项后续验证 |
 
 ## 变更历史
 
@@ -17,6 +18,7 @@
 
 | 时间 | 版本／议题 | 原状态或决定→新状态或决定 | 原因与证据 | 提出／决定者及来源 | 影响范围 |
 |---|---|---|---|---|---|
+| 2026-11-21 22:45:29 +08:00 | entry-4300／DLL 与 MXC 教训 | 无→新增正式教训入口 | [调查草稿](../drafts/CODEX_WINDOWS_VENV_DLL_MXC_INVESTIGATION.md) §10，本机时钟 | 用户授权，Codex 整理 | 正式教训索引 |
 | 2026-11-16 13:13:25 +08:00 | entry-3353／G-N1与G-N2收尾 | 两方发现项→作者修正并明确版本范围 | Grok有效检视3f4a86ec1e854356b1c5776a37054e9e；[处理记录](../drafts/BENCHMARK_RESTART_LESSONS_DISCUSSION.md)§13；Python本机时钟 | Codex按负责人决定处理 | 仅文档；末次修订未另行独立复查，行为效果未验证 |
 | 2026-11-16 12:56:49 +08:00 | entry-3353／文档清理与正式化 | 旧表述→删除指定提及并关联正式记录 | 用户要求；[前置记录](../drafts/BENCHMARK_RESTART_LESSONS_DISCUSSION.md)§13；Python本机时钟 | 用户授权；Codex实施 | 仅文档；作者静态检查，两方检视待完成 |
 | 2026-11-15 23:21:27 +08:00 | entry-3244／历史倒序整理 | 原历史展示→最新在前、文末六列 | 用户最新要求；合并前置稿见DOCUMENT_LIFECYCLE_HISTORY_DISCUSSION.md§6；时间来源Python本机时钟 | 用户；Codex整理 | 仅历史结构与排序，旧证据和批准边界保留；待两端检视 |

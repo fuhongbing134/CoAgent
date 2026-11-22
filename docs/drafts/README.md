@@ -13,6 +13,7 @@
 | 已决定，已实施待检视 | [SOURCE_LAYOUT_DESIGN.md](SOURCE_LAYOUT_DESIGN.md) | §17 记录根入口决定、逐件归位及实施，§14–§16 保留候选。正式约定见[设计 §15](../design/SOURCE_LAYOUT_DESIGN.md#15-根目录与入口约定) |
 | 已形成正式记录 | [源码目录重组与宿主拆分需求](SOURCE_LAYOUT_REQUIREMENTS.md) | entry-3689，0.2 同版检视基线，正式稿见 [REQ-002 1.0](../requirements/SOURCE_LAYOUT_REQUIREMENTS.md) |
 | 讨论中 | [架构讨论系列](architecture-review/README.md)及[第二轮汇总](architecture-review/SUMMARY.md#第二轮复核汇总原判断修正及维持对照) | 三方署名分析、事实核查和修订历史整体保存；含已实现现状的观察，但改进建议尚未正式选定，不能当作官方架构或整体实施计划 |
+| 讨论中 | [硬编码与绝对路径全量排查报告](HARDCODING_INVENTORY.md) | entry-4278；0.1；三端只读清点（workbench/tests+根配置/docs+specs）合并去重，按 A—E 优先级列出位置、原因、改进与后果；改进仅为建议、尚未授权或实施 |
 | 讨论中 | [三后端skill机制与第一步方案](SKILL_MECHANISM_DISCUSSION.md) | 已汇总复盘及三端共识；通用规范1.0.0已生效；entry-2882评估暂不落地文档管理skill，保留候选、理由与重评条件，历史异议保留 |
 | 讨论中 | [STAGE_DELIVERY_SPEC_DISCUSSION.md](STAGE_DELIVERY_SPEC_DISCUSSION.md) | entry-3457；0.7；草稿待优化，用户认为当前机制仍有问题；既有讨论与完整阶段需求保留，候选未定稿，正式规则未改、行为未验证 |
 | 讨论中 | [TEST_RESTART_BASELINE.md](TEST_RESTART_BASELINE.md) | entry-3372／entry-3461；0.7仅追加正式需求后继关联；原0.5工具返修及18纯检查状态保留，待聚焦复查，进程/HTTP未运行 |
@@ -21,6 +22,7 @@
 | 已形成正式记录 | [CODE_EXAMPLE_LIBRARY_DISCUSSION.md](CODE_EXAMPLE_LIBRARY_DISCUSSION.md) | entry-3209；0.8；真实问题见§12、独立检视及处理见§13；正式代码未改，说明修订自查未复查 |
 | 已形成正式记录 | [CODE_SPEC_SPLIT_DISCUSSION.md](CODE_SPEC_SPLIT_DISCUSSION.md) | entry-3189; 0.5; [CODE_WRITING_SPEC.md](../../specs/CODE_WRITING_SPEC.md) 1.0.1 / [CODE_REVIEW_SPEC.md](../../specs/CODE_REVIEW_SPEC.md) 2.0.0; 原落盘版独立检视无阻断，引用历史修订已自查未另行独立复查，效果未验证  本轮补历史表经两端聚焦复查无阻断，范围见治理记录§11 |
 | 已形成正式记录 | [CODEX_GIT_PROFILE.md](CODEX_GIT_PROFILE.md) | entry-3888 启动策略及验收边界 |
+| 已形成正式记录 | [CODEX_WINDOWS_VENV_DLL_MXC_INVESTIGATION.md](CODEX_WINDOWS_VENV_DLL_MXC_INVESTIGATION.md) | 保留 0.1 原始调查、本机验收及 §10 形成依据。正式教训见 [../lessons/WINDOWS_VENV_DLL_MXC_LESSONS.md](../lessons/WINDOWS_VENV_DLL_MXC_LESSONS.md) |
 | 已形成正式记录 | [CONCURRENCY_LOAD_TEST_REQUIREMENTS.md](CONCURRENCY_LOAD_TEST_REQUIREMENTS.md) | entry-3475；0.4；保留0.2冻结基线及形成记录；当前正文见[../requirements/CONCURRENCY_LOAD_TEST_REQUIREMENTS.md](../requirements/CONCURRENCY_LOAD_TEST_REQUIREMENTS.md)1.1；未测试 |
 | 已形成正式记录 | [CONCURRENCY_VERIFICATION_DESIGN.md](CONCURRENCY_VERIFICATION_DESIGN.md) | 形成记录0.6；§15候选1.1-C1冻结，§16两方意见及综合依据；当前正文见[../design/CONCURRENCY_VERIFICATION_DESIGN.md](../design/CONCURRENCY_VERIFICATION_DESIGN.md)1.1；综合版未另复核，隔离夹具首次诊断装配失败；§22已静态修正入口及失败观察，§23已修入口协议，单请求已创建进程并确认退出，子进程在 ready 前失败（形成记录§24），退出观察返修已通过无服务检查（形成记录§25），3551-01 提前退出观察已实测并复查，stdin 字节计数返修后 3551-02 完成一次 I2 隔离握手，待独立复查（形成记录§26） |
 | 已形成正式记录 | [DESIGN_ENGINEERING_COMPLETENESS_DISCUSSION.md](DESIGN_ENGINEERING_COMPLETENESS_DISCUSSION.md) | entry-3511；形成0.2；两方候选讨论及综合处理见§8，§5候选冻结；当前规则见[../../specs/DESIGN_DECISION_RECORD_SPEC.md](../../specs/DESIGN_DECISION_RECORD_SPEC.md)1.4.0；综合版待独立复核，效果未验证 |
@@ -64,6 +66,9 @@ entry-3189：CODE_SPEC_SPLIT_DISCUSSION.md由讨论中转为已形成正式记�
 
 | 时间 | 版本／议题 | 原状态或决定→新状态或决定 | 原因与证据 | 提出／决定者及来源 | 影响范围 |
 |---|---|---|---|---|---|
+| 2026-11-21 22:45:29 +08:00 | entry-4300／DLL 与 MXC 教训 | 复盘草稿→关联正式教训 | [调查草稿](CODEX_WINDOWS_VENV_DLL_MXC_INVESTIGATION.md) §10，本机时钟 | 用户授权，Codex 整理 | 草稿索引状态及链接 |
+| 2026-11-21 22:27:23 +08:00 | 硬编码与绝对路径排查报告 0.1 | 无→新增讨论草稿入口 | 用户要求把 entry-4278 三端排查讨论落为独立文档；本机时钟 | 用户提出；DeepSeek Harness 整理 | 草稿索引 |
+| 2026-11-21 22:11:36 +08:00 | Windows DLL 故障与 MXC 复盘 0.1 | 无→新增草稿入口 | 用户要求记录定位、测试改动和配置验证。本机时钟 | 用户提出，Codex 整理 | 草稿索引 |
 | 2026-11-20 11:21:44 +08:00 | entry-3821／草稿索引同步 | 原导航→归位后导航 | 用户批准，目录重组草稿 §17。本机时钟 | Codex 实施 | 路径及状态摘要 |
 | 2026-11-20 08:48:28 +08:00 | entry-3754／目录草稿索引 | 已形成正式记录→补列续议待审阅 | [设计稿](SOURCE_LAYOUT_DESIGN.md) §14。本机时钟 | 用户委托，Codex 整理 | 草稿索引摘要 |
 | 2026-11-20 01:01:33 +08:00 | entry-3721／设计归档 | 待检视→保留评审基线及正式后继 | [正式设计](../design/SOURCE_LAYOUT_DESIGN.md) §13。本机时钟 | 用户授权，Codex 归档 | 草稿索引 |
