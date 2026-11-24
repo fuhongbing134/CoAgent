@@ -14,7 +14,7 @@ from pathlib import Path
 from workbench.execution.execution_runtime import Execution
 from workbench.execution.execution_runtime import ExecutionAdmissionError
 from workbench.execution.execution_runtime import format_execution_error
-from workbench.execution.execution_tracking import DomainBusy
+from workbench.execution.execution_tracking import DomainBusy, StaleRun
 
 
 class AgentRunCancelled(Exception):
@@ -257,6 +257,14 @@ def run_managed_process(message_id: int, command: list[str], active_run, **kwarg
                     working_directory=str(execution.working_directory), workspace_version=0,
                     launch_mode=metadata.get('session_mode', 'resume' if '--session-id' in command or 'resume' in command else 'new'))
     if run['agent_id'] == 'codex':
+        from workbench.adapters.codex_diagnostics import MxcProcessObservation, cli_version, select_backend
+
+        snapshot.update(
+            permission_mode=metadata.get('permission_mode', 'default'),
+            permission_profile=metadata.get('permission_profile_requested'),
+            observed_backend='unknown',
+            backend_evidence_source='unknown',
+        )
         if '--sandbox' in command:
             snapshot['sandbox'] = command[command.index('--sandbox') + 1]
         else:
@@ -279,7 +287,26 @@ def run_managed_process(message_id: int, command: list[str], active_run, **kwarg
         snapshot['session_identity'] = dict(zip(
             ('adapter_id','backend_scope','config_fingerprint','workspace_id','workspace_version'),
             config.identity.values()))
-    result = execution.launch(command, snapshot=snapshot, **kwargs)
+    if run['agent_id'] == 'codex':
+        snapshot['cli_version'] = cli_version(command[0])
+        previous_stage = kwargs.pop('on_stage', None)
+        with MxcProcessObservation(command[0]) as observer:
+            def observe_stage(stage, process):
+                if previous_stage is not None:
+                    previous_stage(stage, process)
+                observer.on_stage(stage, process)
+
+            result = execution.launch(command, snapshot=snapshot, on_stage=observe_stage, **kwargs)
+            process_evidence = observer.collect()
+        backend, source = select_backend(result.stderr.decode('utf-8', errors='replace'), process_evidence)
+        if backend != 'unknown':
+            try:
+                execution.tracker.record_codex_backend(
+                    execution.token, backend, source, process_evidence=process_evidence)
+            except (StaleRun, OSError, sqlite3.Error):
+                logging.getLogger(__name__).warning('Unable to store Codex backend observation')
+    else:
+        result = execution.launch(command, snapshot=snapshot, **kwargs)
     if config is not None:
         validation = execution.observe_session(config.identity.adapter_id,
             result.stdout.decode('utf-8', errors='replace'),

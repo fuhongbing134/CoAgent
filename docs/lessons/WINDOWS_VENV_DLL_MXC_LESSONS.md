@@ -29,7 +29,7 @@
 
 ## 4. 项目后续事项
 
-以下是 entry-4290 复盘提出的验证与改进事项，当前状态为待执行。位置指向排查时对应模块及代码位点。
+以下是 entry-4290 复盘提出的六项改进，位置指向当时的模块及代码位点。六项随后纳入 [REQ-003](../requirements/DLL_MXC_IMPROVEMENTS_REQUIREMENTS.md)，2026-11-24 完成原定主要验收。结果见[正式验收报告](../verification/DLL_MXC_IMPROVEMENTS_VERIFICATION.md)。
 
 | 优先级 | 位置 | 发现与验证条件 |
 |---|---|---|
@@ -40,10 +40,11 @@
 | 中 | [托管进程](../../workbench/execution/managed_process.py)，约第 220 行，以及 [Job 验证入口](../../tests/verify/verify_task6_breakaway.py) | 基础 Python 和虚拟环境入口分别验收，检查实际启动器与解释器的 Job 归属、取消和退出。 |
 | 中 | [能力探测](../../workbench/agents/capability_probe.py)，约第 7、73 行 | 区分宿主探测与 Agent 沙箱实际能力，验证原生模块加载失败时的诊断及两端结果不一致时的表达。 |
 
-MXC 下的真实 Git 提交与远端推送、最终汇总、Grok 文件操作、整机重启后及跨机运行仍待验证。
+原复盘还列出真实 Git 提交与远端推送、最终汇总、Grok 文件操作、整机重启及跨机运行。后续已验证工作台只读最终汇总与 Grok MCP 文件操作，两次实测的环境和权限边界以[正式验收报告](../verification/DLL_MXC_IMPROVEMENTS_VERIFICATION.md)为准。MXC 下的 Git 提交和推送、整机重启及跨机运行留在原复盘的独立验证范围。
 
 ## 变更历史
 
 | 时间 | 版本／议题 | 原状态或决定→新状态或决定 | 原因与证据 | 提出／决定者及来源 | 影响范围 |
 |---|---|---|---|---|---|
+| 2026-11-24 19:28:26 +08:00 | DLL/MXC 六项／后续验收归档 | 原复盘六项待执行→关联已完成的主要验收 | [正式验收报告](../verification/DLL_MXC_IMPROVEMENTS_VERIFICATION.md)及[收尾形成记录](../drafts/DLL_MXC_IMPROVEMENTS_DESIGN.md#19-六项改进正式收尾形成记录)。本机时钟 | 用户确认收尾，Codex 整理 | 第 4 节后续事项与原复盘边界 |
 | 2026-11-21 22:45:29 +08:00 | entry-4300／1.0 | 无→正式教训记录 | [调查草稿 §10](../drafts/CODEX_WINDOWS_VENV_DLL_MXC_INVESTIGATION.md) 与 entry-4290 三方复盘，本机时钟 | 用户授权，Codex 整理 | 文档和导航，动态结果沿用原验收 |

@@ -223,6 +223,16 @@ class ExecutionTracker:
             db.execute('UPDATE execution_runs SET config_snapshot=? WHERE run_id=?',
                        (json.dumps(snapshot, ensure_ascii=False, allow_nan=False), token.run_id))
 
+    def record_codex_backend(self, token, backend, source, *, process_evidence=None):
+        with self._transaction() as db:
+            run, _ = self._owned(db, token)
+            snapshot = json.loads(run['config_snapshot'])
+            snapshot.update(observed_backend=backend, backend_evidence_source=source)
+            if process_evidence is not None:
+                snapshot['backend_process_evidence'] = process_evidence
+            db.execute('UPDATE execution_runs SET config_snapshot=? WHERE run_id=?',
+                       (json.dumps(snapshot, ensure_ascii=False, allow_nan=False), token.run_id))
+
     def claim_session(self, token, identity, *, adoption=None, tools_disabled=False):
         """Claim only after domain reservation. adoption is an explicit reviewed candidate.
 

@@ -14,7 +14,8 @@ from workbench.execution.execution_tracking import StaleRun
 SCHEMA_VERSION = 1
 TOOLS = ("create_file", "edit_file", "delete_file")
 SERVER_EVENTS = {event.encode("ascii"): event for event in
-                 ("started", "initialize_response", "tools_list_response")}
+                 ("started", "initialize_response", "tools_list_response",
+                  "native_import_uncaught", "native_os_error")}
 
 
 def read_evidence(path, consume):
@@ -65,6 +66,7 @@ def record_diagnostic(execution, debug_path, server_path, command):
         },
         "client_stages": {},
         "server_events": [],
+        "server_process": "unknown",
     }
     result = execution.result
     if result is not None:
@@ -80,12 +82,26 @@ def record_diagnostic(execution, debug_path, server_path, command):
                 pass
 
     server_events = set()
+    server_processes = set()
     def remember_server_event(line):
         if line in SERVER_EVENTS:
             server_events.add(SERVER_EVENTS[line])
+        elif line.startswith(b'{"event": "process_identity",'):
+            try:
+                identity = json.loads(line)
+            except (ValueError, RecursionError):
+                return
+            pid, executable = identity.get('pid'), identity.get('executable')
+            if type(pid) is int and pid > 0 and isinstance(executable, str) and Path(executable).is_absolute():
+                server_processes.add((pid, executable))
 
     read_evidence(server_path, remember_server_event)
+    if len(server_processes) == 1:
+        pid, executable = server_processes.pop()
+        summary['server_process'] = {'pid': pid, 'executable': executable}
     summary["server_events"] = sorted(server_events)
+    if server_events & {"native_import_uncaught", "native_os_error"}:
+        summary["server_failure_stage"] = "native_load"
     if "tools_list_response" in server_events:
         summary["server_tools"] = list(TOOLS)
     read_evidence(debug_path, lambda line: client_evidence(line, summary))

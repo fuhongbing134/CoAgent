@@ -1,3 +1,4 @@
+import builtins
 import http.client
 import json
 import os
@@ -27,6 +28,32 @@ class FrontendTests(unittest.TestCase):
 
 
 class ProbeTests(unittest.TestCase):
+    def test_ssl_import_failure_is_isolated_to_host_https(self):
+        real_import = builtins.__import__
+
+        def import_with_broken_ssl(name, *args, **kwargs):
+            if name == "ssl":
+                raise ImportError("injected _ssl load failure")
+            return real_import(name, *args, **kwargs)
+
+        def git(directory, *args):
+            return subprocess.CompletedProcess("git", int(args[0] != "status"), "", "")
+
+        with tempfile.TemporaryDirectory(dir=Path(__file__).resolve().parent) as directory, \
+                patch.object(builtins, "__import__", side_effect=import_with_broken_ssl), \
+                patch.object(probes, "run_git", side_effect=git):
+            manager = probes.ProbeManager()
+            manager._run(directory)
+            snapshot = manager.snapshot(directory)
+
+        self.assertEqual(snapshot["agent_sandbox"], {"state": "not_tested"})
+        self.assertEqual([item["status"] for item in snapshot["results"]],
+                         ["passed", "passed", "failed", "failed", "skipped"])
+        for item in snapshot["results"]:
+            self.assertEqual(item["environment"], "workbench")
+            if item["name"] == "https":
+                self.assertEqual(item["detail"], "host_native_dependency_failed_ssl")
+
     def test_worker_failure_releases_global_slot(self):
         manager = probes.ProbeManager(lambda directory: (_ for _ in ()).throw(RuntimeError("failed")))
         with patch.object(probes.threading, "Thread") as worker:

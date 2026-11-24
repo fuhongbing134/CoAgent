@@ -260,6 +260,36 @@ class ManagedProcessTests(unittest.TestCase):
             for handle in handles:
                 self.assertEqual(self.api.k.WaitForSingleObject(handle, 0), 0)
 
+    def test_launcher_and_interpreter_exit_on_cancel(self):
+        marker = self.directory / 'interpreter.json'
+        source = (
+            'import json, os, sys, time; from pathlib import Path; '
+            f'Path({str(marker)!r}).write_text(json.dumps([os.getpid(), sys.executable]) + "\\n"); '
+            'time.sleep(30)'
+        )
+        handles = []
+
+        def inspect(stage, owner):
+            if stage != 'after_resume':
+                return
+            wait_for(lambda: marker.exists() and marker.read_text().endswith('\n'))
+            interpreter_pid, interpreter = json.loads(marker.read_text())
+            self.assertTrue(Path(interpreter).samefile(sys.executable))
+            print(f'launcher={sys.executable} pid={owner.pid}; '
+                  f'interpreter={interpreter} pid={interpreter_pid}')
+            for pid in dict.fromkeys((owner.pid, interpreter_pid)):
+                handle = self.hold_process(pid, 0x101000)
+                handles.append(handle)
+                inside = W.BOOL()
+                self.api.check(self.api.k.IsProcessInJob(handle, owner.job_handle, C.byref(inside)))
+                self.assertTrue(inside.value, f'PID {pid} is outside the managed Job')
+            owner.cancel()
+
+        result = self.run_code(source, on_stage=inspect)
+        self.assertEqual((result.outcome, result.exit_evidence), ('cancelled', 'confirmed'), result)
+        for handle in handles:
+            self.assert_exited(handle)
+
     def test_job_list_or_creation_failure_has_no_fallback(self):
         process = ManagedProcess()
         with patch('workbench.execution.managed_process._WinAPI', side_effect=OSError('unsupported platform')):

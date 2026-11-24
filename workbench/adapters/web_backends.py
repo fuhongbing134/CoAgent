@@ -105,7 +105,8 @@ def run_codex(
         with tempfile.TemporaryDirectory(prefix="agent-workbench-") as temporary_directory:
             answer_path = Path(temporary_directory) / "codex-answer.txt"
             requested_profile = None
-            if getattr(COLLAB_CONTEXT, "final_delivery", False):
+            read_only = getattr(COLLAB_CONTEXT, "final_delivery", False)
+            if read_only:
                 permission_args = ["--sandbox", "read-only"]
             elif working_directory.resolve() == Path(
                 "C:/Users/FHB/Documents/Codex/agent-lab/step1"
@@ -134,6 +135,7 @@ def run_codex(
                 diagnostic_metadata={
                     "agent_id": "codex",
                     "permission_profile_requested": requested_profile,
+                    "permission_mode": "read-only" if read_only else "default",
                     "transport": "stdin",
                     "session_mode": "resume" if thread_id else "new",
                     "prompt_utf8_bytes": len(agent_prompt.encode("utf-8")),

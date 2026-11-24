@@ -42,16 +42,20 @@ def file_path(root, parts):
     return target
 
 
-def operate(root, operation, arguments):
+def operate(root, operation, arguments, diagnostic_path=None):
     if operation not in {'create_file', 'edit_file', 'delete_file'}:
         raise ValueError('Unknown file operation')
     parts = path_parts(arguments['path'])
     data = None if operation == 'delete_file' else arguments['text'].encode('utf-8')
     if os.name == 'nt':
-        if __package__:
-            from .workspace_files_windows import operate as operate_windows
-        else:
-            from workspace_files_windows import operate as operate_windows
+        try:
+            if __package__:
+                from .workspace_files_windows import operate as operate_windows
+            else:
+                from workspace_files_windows import operate as operate_windows
+        except OSError:
+            record_stage(diagnostic_path, 'native_os_error')
+            raise
         operate_windows(root, parts, operation, data)
         return f'{operation} succeeded'
 
@@ -106,6 +110,9 @@ def record_stage(path, stage):
 
 def serve(root, diagnostic_path=None):
     record_stage(diagnostic_path, 'started')
+    record_stage(diagnostic_path, json.dumps({
+        'event': 'process_identity', 'pid': os.getpid(), 'executable': sys.executable,
+    }))
     for line in sys.stdin:
         try:
             request = json.loads(line)
@@ -130,7 +137,7 @@ def serve(root, diagnostic_path=None):
             response['result'] = {'tools': list(tools())}
         elif method == 'tools/call':
             try:
-                message = operate(root, params['name'], params['arguments'])
+                message = operate(root, params['name'], params['arguments'], diagnostic_path)
                 error = False
             except (OSError, ValueError, KeyError, TypeError, AttributeError) as exc:
                 message, error = str(exc), True
@@ -150,4 +157,18 @@ def write_error(code, message):
 
 if __name__ == '__main__':
     sys.stdin.reconfigure(encoding='utf-8')
-    serve(Path(sys.argv[1]).absolute(), Path(sys.argv[2]) if len(sys.argv) == 3 else None)
+    diagnostic_path = Path(sys.argv[2]) if len(sys.argv) == 3 else None
+
+    def report_uncaught(error_type, error, traceback):
+        if issubclass(error_type, ImportError):
+            frame = traceback
+            while frame is not None:
+                if (frame.tb_frame.f_globals.get('__name__') or '').endswith('workspace_files_windows'):
+                    record_stage(diagnostic_path, 'native_import_uncaught')
+                    break
+                frame = frame.tb_next
+        sys.__excepthook__(error_type, error, traceback)
+
+    if diagnostic_path is not None:
+        sys.excepthook = report_uncaught
+    serve(Path(sys.argv[1]).absolute(), diagnostic_path)

@@ -26,6 +26,8 @@
 | 已形成正式记录 | [CONCURRENCY_LOAD_TEST_REQUIREMENTS.md](CONCURRENCY_LOAD_TEST_REQUIREMENTS.md) | entry-3475；0.4；保留0.2冻结基线及形成记录；当前正文见[../requirements/CONCURRENCY_LOAD_TEST_REQUIREMENTS.md](../requirements/CONCURRENCY_LOAD_TEST_REQUIREMENTS.md)1.1；未测试 |
 | 已形成正式记录 | [CONCURRENCY_VERIFICATION_DESIGN.md](CONCURRENCY_VERIFICATION_DESIGN.md) | 形成记录0.6；§15候选1.1-C1冻结，§16两方意见及综合依据；当前正文见[../design/CONCURRENCY_VERIFICATION_DESIGN.md](../design/CONCURRENCY_VERIFICATION_DESIGN.md)1.1；综合版未另复核，隔离夹具首次诊断装配失败；§22已静态修正入口及失败观察，§23已修入口协议，单请求已创建进程并确认退出，子进程在 ready 前失败（形成记录§24），退出观察返修已通过无服务检查（形成记录§25），3551-01 提前退出观察已实测并复查，stdin 字节计数返修后 3551-02 完成一次 I2 隔离握手，待独立复查（形成记录§26） |
 | 已形成正式记录 | [DESIGN_ENGINEERING_COMPLETENESS_DISCUSSION.md](DESIGN_ENGINEERING_COMPLETENESS_DISCUSSION.md) | entry-3511；形成0.2；两方候选讨论及综合处理见§8，§5候选冻结；当前规则见[../../specs/DESIGN_DECISION_RECORD_SPEC.md](../../specs/DESIGN_DECISION_RECORD_SPEC.md)1.4.0；综合版待独立复核，效果未验证 |
+| 已形成正式记录 | [DLL/MXC 复盘后续 6 项改进方案设计](DLL_MXC_IMPROVEMENTS_DESIGN.md) | 保留 0.3 同版检视基线及[收尾形成记录](DLL_MXC_IMPROVEMENTS_DESIGN.md#19-六项改进正式收尾形成记录)。正式设计见 [../design/DLL_MXC_IMPROVEMENTS_DESIGN.md](../design/DLL_MXC_IMPROVEMENTS_DESIGN.md) 1.0 |
+| 已形成正式记录 | [DLL/MXC 复盘后续 6 项改进需求分析](DLL_MXC_IMPROVEMENTS_REQUIREMENTS.md) | entry-4333/4358；REQ-003 0.1 三方交叉检视一致基线，正式稿见 [../requirements/DLL_MXC_IMPROVEMENTS_REQUIREMENTS.md](../requirements/DLL_MXC_IMPROVEMENTS_REQUIREMENTS.md) 1.0 |
 | 已形成正式记录 | [DOCUMENT_LIFECYCLE_HISTORY_DISCUSSION.md](DOCUMENT_LIFECYCLE_HISTORY_DISCUSSION.md) | entry-3234／entry-3244；0.7；文档管理1.3.2及累计33份历史整理；原31份两端初检无阻断（DeepSeek重点四份抽查，Grok结构/哈希与长单元核验），两表及G-F1返修经两端聚焦复查无阻断；本次仅状态同步、作者核对，版本边界见§11 |
 | 已形成正式记录 | [PROCESS_GOVERNANCE_LESSONS_DISCUSSION.md](PROCESS_GOVERNANCE_LESSONS_DISCUSSION.md) | 保留独立主张、交叉修正及目录取舍；正式结论见[PROCESS_GOVERNANCE_LESSONS.md](../lessons/PROCESS_GOVERNANCE_LESSONS.md)，规范未修改、效果未验证 |
 | 已形成正式记录 | [REQUIREMENTS_STAGE_SPEC_DISCUSSION.md](REQUIREMENTS_STAGE_SPEC_DISCUSSION.md) | [正式需求规范](../../specs/REQUIREMENTS_ANALYSIS_SPEC.md)1.0.1及description已写入；两端原稿检视完成、意见已修订，修订未另行独立复查，效果未验证 |
@@ -66,6 +68,11 @@ entry-3189：CODE_SPEC_SPLIT_DISCUSSION.md由讨论中转为已形成正式记�
 
 | 时间 | 版本／议题 | 原状态或决定→新状态或决定 | 原因与证据 | 提出／决定者及来源 | 影响范围 |
 |---|---|---|---|---|---|
+| 2026-11-24 19:28:26 +08:00 | DLL/MXC 六项／收尾形成入口 | 设计草稿基线→增补收尾形成入口 | [草稿第 19 节](DLL_MXC_IMPROVEMENTS_DESIGN.md#19-六项改进正式收尾形成记录)。本机时钟 | 用户确认收尾，Codex 整理 | 草稿索引 |
+| 2026-11-23 19:04:22 +08:00 | entry-4392／DLL/MXC 改进设计转正 | 讨论中→已形成正式记录 | Codex 与 Grok 均确认 0.3 无问题；本机时钟 | 用户确认；DeepSeek Harness 转正 | 草稿索引状态与正式设计关联 |
+| 2026-11-23 08:09:36 +08:00 | entry-4358／DLL/MXC 改进方案设计 | 无→新增讨论草稿入口 | 基于 REQ-003 1.0 写 6 项方案设计草稿；本机时钟 | 用户委托；DeepSeek Harness 起草 | 草稿索引 |
+| 2026-11-23 08:08:00 +08:00 | entry-4358／DLL/MXC 改进需求转正 | 讨论中→已形成正式记录 | 用户确认正式落地；本机时钟 | 用户确认；DeepSeek Harness 转正 | 草稿索引状态与正式规范关联 |
+| 2026-11-23 08:00:20 +08:00 | entry-4333／DLL/MXC 后续改进需求 | 无→新增讨论草稿入口 | 三方各析 2 项并交叉检视一致，形成 REQ-003 0.1 草稿；本机时钟 | 用户提出；DeepSeek Harness 汇总 | 草稿索引 |
 | 2026-11-21 22:45:29 +08:00 | entry-4300／DLL 与 MXC 教训 | 复盘草稿→关联正式教训 | [调查草稿](CODEX_WINDOWS_VENV_DLL_MXC_INVESTIGATION.md) §10，本机时钟 | 用户授权，Codex 整理 | 草稿索引状态及链接 |
 | 2026-11-21 22:27:23 +08:00 | 硬编码与绝对路径排查报告 0.1 | 无→新增讨论草稿入口 | 用户要求把 entry-4278 三端排查讨论落为独立文档；本机时钟 | 用户提出；DeepSeek Harness 整理 | 草稿索引 |
 | 2026-11-21 22:11:36 +08:00 | Windows DLL 故障与 MXC 复盘 0.1 | 无→新增草稿入口 | 用户要求记录定位、测试改动和配置验证。本机时钟 | 用户提出，Codex 整理 | 草稿索引 |

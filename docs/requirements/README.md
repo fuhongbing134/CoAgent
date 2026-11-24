@@ -11,6 +11,7 @@
 | 文档 | 编号／版本 | 当前结论 |
 |---|---|---|
 | [CONCURRENCY_LOAD_TEST_REQUIREMENTS.md](CONCURRENCY_LOAD_TEST_REQUIREMENTS.md) | REQ-001／1.1 | 并发正确性、隔离与恢复部分接纳；负载及长期增长暂不纳入，保留重评；未执行测试 |
+| [DLL_MXC_IMPROVEMENTS_REQUIREMENTS.md](DLL_MXC_IMPROVEMENTS_REQUIREMENTS.md) | REQ-003／1.0 | 六项已接纳，主要验收已完成。见[正式验收报告](../verification/DLL_MXC_IMPROVEMENTS_VERIFICATION.md) |
 | [SOURCE_LAYOUT_REQUIREMENTS.md](SOURCE_LAYOUT_REQUIREMENTS.md) | REQ-002／1.0 | 源码与测试分目录、源码按功能分级、拆分宿主职责。实施与验收待开展 |
 
 上层入口：[../README.md](../README.md)。后续需求文档按文件名忽略大小写排序；新主题先按项目文档规范保存形成草稿。
@@ -19,6 +20,8 @@
 
 | 时间 | 版本／议题 | 原状态或决定→新状态或决定 | 原因与证据 | 提出／决定者及来源 | 影响范围 |
 |---|---|---|---|---|---|
+| 2026-11-24 19:28:26 +08:00 | REQ-003／收尾状态同步 | 待实施验收→主要验收已完成 | [正式验收报告](../verification/DLL_MXC_IMPROVEMENTS_VERIFICATION.md)。本机时钟 | 用户确认收尾，Codex 整理 | 需求索引 |
+| 2026-11-23 08:08:00 +08:00 | 1.3／entry-4358 | 新增正式需求 REQ-003 | 三方交叉检视一致，用户确认正式落地；本机时钟 | 用户确认；DeepSeek Harness 转正 | 需求索引 |
 | 2026-11-19 23:58:56 +08:00 | 1.2／entry-3689 | 新增正式需求 REQ-002 | 两位审阅者同版通过，见正式稿 §8 | Codex 归档 | 需求索引 |
 | 2026-11-17 11:48:37 +08:00 | entry-3475／结构整理 | 原摘要→同步分析1.1及形成记录 | 用户要求；关联草稿§17；Python本机时钟 | 用户；Codex | 仅文档导航，未测试 |
 | 2026-11-17 11:30:55 +08:00 | entry-3471／1.0 | 无→正式需求分析目录 | 用户要求；关联草稿§16；Python本机时钟 | 用户授权；Codex整理 | 新目录及首份正式分析，未启动实施 |

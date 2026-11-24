@@ -102,6 +102,7 @@ class _WinAPI:
             'ResumeThread': ([W.HANDLE], W.DWORD),
             'WaitForSingleObject': ([W.HANDLE, W.DWORD], W.DWORD),
             'GetExitCodeProcess': ([W.HANDLE, C.POINTER(W.DWORD)], W.BOOL),
+            'GetProcessTimes': ([W.HANDLE, *([C.POINTER(W.FILETIME)] * 4)], W.BOOL),
             'CloseHandle': ([W.HANDLE], W.BOOL),
         }
         for name, (args, result) in signatures.items():
@@ -133,6 +134,13 @@ class ManagedProcess:
     @property
     def pid(self):
         return int(self.info.dwProcessId) or None
+
+    def creation_filetime(self):
+        """Return the creation time of the still-owned process handle."""
+        created, exited, kernel, user = (W.FILETIME() for _ in range(4))
+        self.api.check(self.api.k.GetProcessTimes(
+            self.info.hProcess, C.byref(created), C.byref(exited), C.byref(kernel), C.byref(user)))
+        return (created.dwHighDateTime << 32) | created.dwLowDateTime
 
     def cancel(self):
         # Linearize the final resume decision against accepting cancellation.

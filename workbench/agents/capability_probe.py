@@ -4,7 +4,6 @@ import copy
 import os
 import re
 import socket
-import ssl
 import subprocess
 import tempfile
 import threading
@@ -12,7 +11,6 @@ import time
 from datetime import datetime, timezone
 from pathlib import Path
 from urllib.error import HTTPError
-from urllib.request import HTTPRedirectHandler, Request, build_opener
 
 
 TARGETS = ("https://github.com", "https://chatgpt.com")
@@ -23,16 +21,21 @@ HTTP_TIMEOUT_SECONDS = 5
 GIT_TIMEOUT_SECONDS = 8
 
 
-class NoRedirect(HTTPRedirectHandler):
-    def redirect_request(self, req, fp, code, msg, headers, newurl):
-        return None
+def build_opener():
+    from urllib.request import HTTPRedirectHandler, build_opener as make_opener
+
+    class NoRedirect(HTTPRedirectHandler):
+        def redirect_request(self, req, fp, code, msg, headers, newurl):
+            return None
+
+    return make_opener(NoRedirect())
 
 
-def error_kind(error):
+def error_kind(error, tls_error=()):
     reason = getattr(error, "reason", error)
     if isinstance(reason, (TimeoutError, socket.timeout, subprocess.TimeoutExpired)):
         return "timeout"
-    if isinstance(reason, ssl.SSLError):
+    if isinstance(reason, tls_error):
         return "tls_error"
     if isinstance(reason, PermissionError):
         return "permission_denied"
@@ -109,7 +112,12 @@ def collect(directory):
     for url in TARGETS:
         def http(url=url):
             try:
-                with build_opener(NoRedirect()).open(
+                import ssl
+                from urllib.request import Request
+            except (ImportError, OSError):
+                return dict(status="failed", detail="host_native_dependency_failed_ssl")
+            try:
+                with build_opener().open(
                     Request(url, method="HEAD", headers={"User-Agent": "CoAgent-capability-probe"}),
                     timeout=HTTP_TIMEOUT_SECONDS,
                 ) as response:
@@ -117,6 +125,8 @@ def collect(directory):
             except HTTPError as error:
                 code = error.code
                 error.close()
+            except OSError as error:
+                return dict(status="failed", detail=error_kind(error, ssl.SSLError))
             return dict(status="responded", http_status=code,
                         detail="HTTP response received; does not verify model/MCP APIs")
         probe("https", url, "HEAD, no redirects", http)
@@ -158,6 +168,7 @@ class ProbeManager:
             item["expired"] = bool("finished" in item and self.clock() - item["finished"] > CACHE_TTL_SECONDS)
             item.pop("finished", None)
             item["working_directory"] = key
+            item["agent_sandbox"] = {"state": "not_tested"}
             return item
 
     def start(self, directory):
