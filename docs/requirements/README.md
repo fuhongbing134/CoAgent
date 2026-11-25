@@ -1,15 +1,18 @@
-# 需求分析
+﻿# 需求分析
 
 | 字段 | 值 |
 |---|---|
-| 版本 | 1.2 |
+| 版本 | 1.4 |
 | 状态 | 正式文档目录 |
 | 来源 | entry-3471用户要求建立单独需求分析文件夹；[形成记录](../drafts/CONCURRENCY_LOAD_TEST_REQUIREMENTS.md#16-正式化前置记录entry-3471) |
 
 本目录存放正式需求分析，描述背景、目标、范围、接纳理由及验收；方案设计、实施和测试结果分别依据各自记录。目录收录不代表测试已执行或能力已验证。
 
+跨阶段统一状态记录另置于 [`tracking/`](tracking/README.md)，每条需求一份；状态推进和阶段证据规则见[任务执行规范§7](../../specs/TASK_EXECUTION_SPEC.md#7-需求阶段导航与统一状态)。本目录需求文档仍是需求定义与基线的权威来源。
+
 | 文档 | 编号／版本 | 当前结论 |
 |---|---|---|
+| [COLLABORATION_ROUTING_REQUIREMENTS.md](COLLABORATION_ROUTING_REQUIREMENTS.md) | REQ-004／1.0 | 协作路由需求文档已验收。U1/U2 依赖判据待确认，实际能力和产品验收待验证 |
 | [CONCURRENCY_LOAD_TEST_REQUIREMENTS.md](CONCURRENCY_LOAD_TEST_REQUIREMENTS.md) | REQ-001／1.1 | 并发正确性、隔离与恢复部分接纳；负载及长期增长暂不纳入，保留重评；未执行测试 |
 | [DLL_MXC_IMPROVEMENTS_REQUIREMENTS.md](DLL_MXC_IMPROVEMENTS_REQUIREMENTS.md) | REQ-003／1.0 | 六项已接纳，主要验收已完成。见[正式验收报告](../verification/DLL_MXC_IMPROVEMENTS_VERIFICATION.md) |
 | [SOURCE_LAYOUT_REQUIREMENTS.md](SOURCE_LAYOUT_REQUIREMENTS.md) | REQ-002／1.0 | 源码与测试分目录、源码按功能分级、拆分宿主职责。实施与验收待开展 |
@@ -20,6 +23,8 @@
 
 | 时间 | 版本／议题 | 原状态或决定→新状态或决定 | 原因与证据 | 提出／决定者及来源 | 影响范围 |
 |---|---|---|---|---|---|
+| 2026-11-25 20:18:13 +08:00 | entry-4687／状态追踪入口 | 无→新增 `tracking/` 导航 | 用户授权；[讨论草稿](../drafts/DESIGN_TO_IMPLEMENTATION_PROCESS_DISCUSSION.md)§10；PowerShell本机时钟 | 用户授权；Codex实施 | 仅添加独立状态追踪入口；未推断或预填现有需求状态 |
+| 2026-11-25 08:06:14+08:00 | 1.4／entry-4620 | 新增正式需求 REQ-004 | 用户决定及[正式需求](COLLABORATION_ROUTING_REQUIREMENTS.md)，本机时钟 | 用户授权，Codex 执行 | 需求索引 |
 | 2026-11-24 19:28:26 +08:00 | REQ-003／收尾状态同步 | 待实施验收→主要验收已完成 | [正式验收报告](../verification/DLL_MXC_IMPROVEMENTS_VERIFICATION.md)。本机时钟 | 用户确认收尾，Codex 整理 | 需求索引 |
 | 2026-11-23 08:08:00 +08:00 | 1.3／entry-4358 | 新增正式需求 REQ-003 | 三方交叉检视一致，用户确认正式落地；本机时钟 | 用户确认；DeepSeek Harness 转正 | 需求索引 |
 | 2026-11-19 23:58:56 +08:00 | 1.2／entry-3689 | 新增正式需求 REQ-002 | 两位审阅者同版通过，见正式稿 §8 | Codex 归档 | 需求索引 |

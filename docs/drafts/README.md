@@ -13,6 +13,8 @@
 | 已决定，已实施待检视 | [SOURCE_LAYOUT_DESIGN.md](SOURCE_LAYOUT_DESIGN.md) | §17 记录根入口决定、逐件归位及实施，§14–§16 保留候选。正式约定见[设计 §15](../design/SOURCE_LAYOUT_DESIGN.md#15-根目录与入口约定) |
 | 已形成正式记录 | [源码目录重组与宿主拆分需求](SOURCE_LAYOUT_REQUIREMENTS.md) | entry-3689，0.2 同版检视基线，正式稿见 [REQ-002 1.0](../requirements/SOURCE_LAYOUT_REQUIREMENTS.md) |
 | 讨论中 | [架构讨论系列](architecture-review/README.md)及[第二轮汇总](architecture-review/SUMMARY.md#第二轮复核汇总原判断修正及维持对照) | 三方署名分析、事实核查和修订历史整体保存；含已实现现状的观察，但改进建议尚未正式选定，不能当作官方架构或整体实施计划 |
+| 已形成复盘记录 | [协作路由故障复盘](COLLABORATION_ROUTING_RETROSPECTIVE.md) | 0.16；§14 保留旧稿删除与历史确认，§15 关联正式需求及历史候选 |
+| 正式修订及独立审计综合完成 | [从设计到实现流程规范讨论](DESIGN_TO_IMPLEMENTATION_PROCESS_DISCUSSION.md) | entry-4647／entry-4655／entry-4665／entry-4669／entry-4687；1.0；两份七规范独立全量审计已综合，范围内问题已修订，方案见§10、审计处理见§12；真实需求案例验证待进行 |
 | 讨论中 | [硬编码与绝对路径全量排查报告](HARDCODING_INVENTORY.md) | entry-4278；0.1；三端只读清点（workbench/tests+根配置/docs+specs）合并去重，按 A—E 优先级列出位置、原因、改进与后果；改进仅为建议、尚未授权或实施 |
 | 讨论中 | [三后端skill机制与第一步方案](SKILL_MECHANISM_DISCUSSION.md) | 已汇总复盘及三端共识；通用规范1.0.0已生效；entry-2882评估暂不落地文档管理skill，保留候选、理由与重评条件，历史异议保留 |
 | 讨论中 | [STAGE_DELIVERY_SPEC_DISCUSSION.md](STAGE_DELIVERY_SPEC_DISCUSSION.md) | entry-3457；0.7；草稿待优化，用户认为当前机制仍有问题；既有讨论与完整阶段需求保留，候选未定稿，正式规则未改、行为未验证 |
@@ -23,15 +25,18 @@
 | 已形成正式记录 | [CODE_SPEC_SPLIT_DISCUSSION.md](CODE_SPEC_SPLIT_DISCUSSION.md) | entry-3189; 0.5; [CODE_WRITING_SPEC.md](../../specs/CODE_WRITING_SPEC.md) 1.0.1 / [CODE_REVIEW_SPEC.md](../../specs/CODE_REVIEW_SPEC.md) 2.0.0; 原落盘版独立检视无阻断，引用历史修订已自查未另行独立复查，效果未验证  本轮补历史表经两端聚焦复查无阻断，范围见治理记录§11 |
 | 已形成正式记录 | [CODEX_GIT_PROFILE.md](CODEX_GIT_PROFILE.md) | entry-3888 启动策略及验收边界 |
 | 已形成正式记录 | [CODEX_WINDOWS_VENV_DLL_MXC_INVESTIGATION.md](CODEX_WINDOWS_VENV_DLL_MXC_INVESTIGATION.md) | 保留 0.1 原始调查、本机验收及 §10 形成依据。正式教训见 [../lessons/WINDOWS_VENV_DLL_MXC_LESSONS.md](../lessons/WINDOWS_VENV_DLL_MXC_LESSONS.md) |
+| 已形成正式记录 | [COLLABORATION_ROUTING_REQUIREMENTS.md](COLLABORATION_ROUTING_REQUIREMENTS.md) | 保留 0.2 评审基线及 entry-4620 正式化记录。正式需求见 [../requirements/COLLABORATION_ROUTING_REQUIREMENTS.md](../requirements/COLLABORATION_ROUTING_REQUIREMENTS.md) |
 | 已形成正式记录 | [CONCURRENCY_LOAD_TEST_REQUIREMENTS.md](CONCURRENCY_LOAD_TEST_REQUIREMENTS.md) | entry-3475；0.4；保留0.2冻结基线及形成记录；当前正文见[../requirements/CONCURRENCY_LOAD_TEST_REQUIREMENTS.md](../requirements/CONCURRENCY_LOAD_TEST_REQUIREMENTS.md)1.1；未测试 |
 | 已形成正式记录 | [CONCURRENCY_VERIFICATION_DESIGN.md](CONCURRENCY_VERIFICATION_DESIGN.md) | 形成记录0.6；§15候选1.1-C1冻结，§16两方意见及综合依据；当前正文见[../design/CONCURRENCY_VERIFICATION_DESIGN.md](../design/CONCURRENCY_VERIFICATION_DESIGN.md)1.1；综合版未另复核，隔离夹具首次诊断装配失败；§22已静态修正入口及失败观察，§23已修入口协议，单请求已创建进程并确认退出，子进程在 ready 前失败（形成记录§24），退出观察返修已通过无服务检查（形成记录§25），3551-01 提前退出观察已实测并复查，stdin 字节计数返修后 3551-02 完成一次 I2 隔离握手，待独立复查（形成记录§26） |
-| 已形成正式记录 | [DESIGN_ENGINEERING_COMPLETENESS_DISCUSSION.md](DESIGN_ENGINEERING_COMPLETENESS_DISCUSSION.md) | entry-3511；形成0.2；两方候选讨论及综合处理见§8，§5候选冻结；当前规则见[../../specs/DESIGN_DECISION_RECORD_SPEC.md](../../specs/DESIGN_DECISION_RECORD_SPEC.md)1.4.0；综合版待独立复核，效果未验证 |
+| 已形成正式记录 | [DESIGN_ENGINEERING_COMPLETENESS_DISCUSSION.md](DESIGN_ENGINEERING_COMPLETENESS_DISCUSSION.md) | entry-3511；形成0.2；两方候选讨论及综合处理见§8，§5候选冻结；当前规则见[../../specs/DESIGN_DECISION_RECORD_SPEC.md](../../specs/DESIGN_DECISION_RECORD_SPEC.md)1.5.0；综合版待独立复核，效果未验证 |
+| 已形成正式记录 | [设计决策记录流程化修订讨论](DESIGN_PROCESS_SPEC_DISCUSSION.md) | entry-4631；0.1；独立评议与回应无实质分歧；正式规范见[1.5.0](../../specs/DESIGN_DECISION_RECORD_SPEC.md)，作者检查完成、独立复核待进行，行为效果未验证 |
 | 已形成正式记录 | [DLL/MXC 复盘后续 6 项改进方案设计](DLL_MXC_IMPROVEMENTS_DESIGN.md) | 保留 0.3 同版检视基线及[收尾形成记录](DLL_MXC_IMPROVEMENTS_DESIGN.md#19-六项改进正式收尾形成记录)。正式设计见 [../design/DLL_MXC_IMPROVEMENTS_DESIGN.md](../design/DLL_MXC_IMPROVEMENTS_DESIGN.md) 1.0 |
 | 已形成正式记录 | [DLL/MXC 复盘后续 6 项改进需求分析](DLL_MXC_IMPROVEMENTS_REQUIREMENTS.md) | entry-4333/4358；REQ-003 0.1 三方交叉检视一致基线，正式稿见 [../requirements/DLL_MXC_IMPROVEMENTS_REQUIREMENTS.md](../requirements/DLL_MXC_IMPROVEMENTS_REQUIREMENTS.md) 1.0 |
 | 已形成正式记录 | [DOCUMENT_LIFECYCLE_HISTORY_DISCUSSION.md](DOCUMENT_LIFECYCLE_HISTORY_DISCUSSION.md) | entry-3234／entry-3244；0.7；文档管理1.3.2及累计33份历史整理；原31份两端初检无阻断（DeepSeek重点四份抽查，Grok结构/哈希与长单元核验），两表及G-F1返修经两端聚焦复查无阻断；本次仅状态同步、作者核对，版本边界见§11 |
 | 已形成正式记录 | [PROCESS_GOVERNANCE_LESSONS_DISCUSSION.md](PROCESS_GOVERNANCE_LESSONS_DISCUSSION.md) | 保留独立主张、交叉修正及目录取舍；正式结论见[PROCESS_GOVERNANCE_LESSONS.md](../lessons/PROCESS_GOVERNANCE_LESSONS.md)，规范未修改、效果未验证 |
-| 已形成正式记录 | [REQUIREMENTS_STAGE_SPEC_DISCUSSION.md](REQUIREMENTS_STAGE_SPEC_DISCUSSION.md) | [正式需求规范](../../specs/REQUIREMENTS_ANALYSIS_SPEC.md)1.0.1及description已写入；两端原稿检视完成、意见已修订，修订未另行独立复查，效果未验证 |
+| 已形成正式记录 | [REQUIREMENTS_STAGE_SPEC_DISCUSSION.md](REQUIREMENTS_STAGE_SPEC_DISCUSSION.md) | [正式需求规范](../../specs/REQUIREMENTS_ANALYSIS_SPEC.md)1.2.1 已澄清暂停范围。§29 保留初评，§30 记录两端对 1.2.0 的复核及负责人对 1.2.1 的取舍 |
 | 已形成正式记录 | [SPEC_DESCRIPTIONS_DISCUSSION.md](SPEC_DESCRIPTIONS_DISCUSSION.md) | entry-3161综合记录0.4；五份字段新增、一份保留，Grok落盘独立语义核对通过；索引格式及排序已修正，行为效果未验证，依据见§8  本轮补历史表经两端聚焦复查无阻断，范围见治理记录§11 |
+| 已形成正式记录 | [规范澄清：三类行为必须落草稿](SPEC_MANDATORY_DOC_ACTIVITIES_CLARIFICATION.md) | entry-4320/4328；0.2 一致稿基线，已落地 document-management-spec 1.6.0、requirements-analysis-spec 1.1.1、design-decision-record-spec 1.4.1 |
 | 阶段报告 | [CONCURRENCY_LOAD_TEST_REPORT.md](CONCURRENCY_LOAD_TEST_REPORT.md) | 0.7 历史基线，保留新版全量复跑、收尾提示回归与当时的验证边界 |
 | 阶段报告 | [CONCURRENCY_LOAD_TEST_REPORT_R7.md](CONCURRENCY_LOAD_TEST_REPORT_R7.md) | 0.8 同版审阅基线，正文状态保留审阅时语境。正式稿见 [../verification/CONCURRENCY_LOAD_TEST_REPORT.md](../verification/CONCURRENCY_LOAD_TEST_REPORT.md) |
 | 需求待实现／未修复 | [无输入依赖却停留受阻卡片的场景](UNNECESSARY_BLOCKED_CARD_SCENARIO.md) | entry-3260；0.1；CARD-BLOCK-001；用户报告建库讨论失败后第二轮需手动给结论才结束；保留候选调用、未知项及验收方向，未复现、未修复 |
@@ -68,11 +73,49 @@ entry-3189：CODE_SPEC_SPLIT_DISCUSSION.md由讨论中转为已形成正式记�
 
 | 时间 | 版本／议题 | 原状态或决定→新状态或决定 | 原因与证据 | 提出／决定者及来源 | 影响范围 |
 |---|---|---|---|---|---|
+| 2026-11-25 20:34:34 +08:00 | entry-4687／独立审计综合返修 | 0.9待审计→1.0两份全量审计已综合，范围内问题修订 | [讨论记录](DESIGN_TO_IMPLEMENTATION_PROCESS_DISCUSSION.md)§12；DeepSeek Harness、Grok独立回执；系统UTC时钟换算为 +08:00 | Codex综合；依用户原授权处理 | task-execution 1.2.1、requirements 1.2.3、document-management 1.6.1；行为效果待真实需求案例验证 |
+| 2026-11-25 20:18:52 +08:00 | entry-4687／正式修订实施 | 0.8实施中→0.9正式规范、索引及tracking模板已落盘，待独立审计 | [讨论记录](DESIGN_TO_IMPLEMENTATION_PROCESS_DISCUSSION.md)§10—§11；实际修改及 `git diff --check`；PowerShell本机时钟 | 用户授权；Codex实施 | task-execution 1.2.0、requirements 1.2.2、design 1.5.1；独立全量审计和效果验证待完成 |
+| 2026-11-25 20:11:54 +08:00 | entry-4687／正式修订授权与方案 | 0.7讨论中、正式规范未授权→0.8记录用户授权及边界审计/实施方案 | 用户原文及既有决策；[讨论记录](DESIGN_TO_IMPLEMENTATION_PROCESS_DISCUSSION.md)§10；PowerShell本机时钟 | 用户授权；Codex整理 | 先更新讨论草稿与索引，再实施相关规范及tracking模板；七份规范独立全量审计安排在实施后；其他已有改动保留 |
+| 2026-11-25 20:02:53 +08:00 | entry-4669／适用边界与目录决定 | 0.6→0.7记录用户接受tracking目录方向，并补充现行规范职责分工与误用风险分析 | [讨论记录](DESIGN_TO_IMPLEMENTATION_PROCESS_DISCUSSION.md)§9.2—§9.5；用户回复及规范正文核对；PowerShell本机时钟 | 用户确认目录方向并提出适用性问题；Codex分析 | 仅同步讨论草稿与索引；规范适用性全量审计待后续，正式规范未改 |
+| 2026-11-25 19:56:46 +08:00 | entry-4669／状态与规范边界补充 | 0.5→0.6记录用户对生命周期范围、状态集合、记录粒度/推进责任、返修复核及description审视的确认与建议 | [讨论记录](DESIGN_TO_IMPLEMENTATION_PROCESS_DISCUSSION.md)§9；用户回复及目录/索引核对；PowerShell本机时钟 | 用户确认/提出；Codex整理 | 仅同步讨论草稿与索引；状态记录子目录及description场景唯一性解释仍待决定，正式规范未改 |
+| 2026-11-25 19:38:47 +08:00 | entry-4669／三阶段评议综合 | 0.4用户基线及评议待综合→0.5记录三方逐点评议与候选更新映射 | [讨论记录](DESIGN_TO_IMPLEMENTATION_PROCESS_DISCUSSION.md)§8；Codex、DeepSeek Harness、Grok 独立回执；PowerShell本机时钟 | Codex 综合；三方独立评议 | 仅更新讨论草稿和索引；候选建议未形成正式规则，正式规范未改 |
+| 2026-11-25 19:28:40 +08:00 | entry-4669／导航及阶段交付物基线 | 0.3生命周期承载讨论→0.4记录导航方向、统一状态和阶段门需求 | [讨论记录](DESIGN_TO_IMPLEMENTATION_PROCESS_DISCUSSION.md)§7；用户原文；PowerShell本机时钟 | 用户提出并确认方向；Codex记录 | 仅更新草稿索引与讨论基线；正式规范未改，机制待评议 |
+| 2026-11-25 19:18:21 +08:00 | entry-4665／生命周期承载方式综合 | 0.2承载位置待评议→0.3记录三方意见及当前建议 | [讨论记录](DESIGN_TO_IMPLEMENTATION_PROCESS_DISCUSSION.md)§6.3—§6.4；DeepSeek Harness、Grok独立回执及Codex回应；PowerShell本机时钟 | Codex综合；DeepSeek Harness、Grok独立评议 | 仅同步草稿索引及历史；建议仍待用户裁决，正式规范未改 |
+| 2026-11-25 19:06:07 +08:00 | entry-4655／流程导航承载方式 | entry-4647综合意见、承载位置待用户决定→新增独立规范或现有规范承载问题待评议 | [讨论记录](DESIGN_TO_IMPLEMENTATION_PROCESS_DISCUSSION.md)§6；用户新问题；PowerShell本机时钟 | 用户提出；Codex记录基线 | 仅更新草稿入口和历史；尚无新一轮独立意见或正式规则变更 |
+| 2026-11-25 18:57:55 +08:00 | entry-4647／独立评议与逐点回应 | 0.1基线及待评议→0.2记录三方意见与负责人回应 | [讨论记录](DESIGN_TO_IMPLEMENTATION_PROCESS_DISCUSSION.md)§4—§5；两份串行独立评议及逐点回应；PowerShell本机时钟 | DeepSeek Harness、Grok独立评议；Codex回应 | 仅同步草稿状态与历史；正式规则未改，承载位置待用户决定 |
+| 2026-11-25 18:51:07 +08:00 | entry-4647／流程规范讨论草稿入口 | 无→新增讨论草稿入口 | [需求基线与原提案](DESIGN_TO_IMPLEMENTATION_PROCESS_DISCUSSION.md)§1—§3；PowerShell本机时钟 | 用户提出；Codex整理 | 草稿索引及历史；独立评议待串行进行 |
+| 2026-11-25 18:46:22 +08:00 | entry-4631／草稿索引复核修正 | 讨论区位置及旧当前版本引用→正式记录组排序及1.5.0当前版本 | 独立复核发现；PowerShell本机时钟 | Codex复核并修正 | 草稿分类入口及当前规范版本引用；历史语境中的1.4.0未改 |
+| 2026-11-25 18:41:07 +08:00 | entry-4631／草稿状态与正式后继 | 修订中→已形成正式记录 | [形成记录](DESIGN_PROCESS_SPEC_DISCUSSION.md)§5—§7及[正式规范](../../specs/DESIGN_DECISION_RECORD_SPEC.md)1.5.0；PowerShell本机时钟 | 用户授权；Codex实施 | 草稿入口和状态、正式规范后继关系；独立复核待进行，行为效果未验证 |
+| 2026-11-25 18:37:27 +08:00 | entry-4631／设计流程草稿入口 | 无→新增讨论记录入口 | [形成记录](DESIGN_PROCESS_SPEC_DISCUSSION.md)§1—§5；PowerShell本机时钟 | 用户授权；Codex 整理 | 草稿分类清单及本历史；正式规范修改待后续实施与检查 |
+| 2026-11-25 08:06:14+08:00 | entry-4620／路由需求归位 | 讨论中→已形成正式记录 | [正式需求](../requirements/COLLABORATION_ROUTING_REQUIREMENTS.md)，本机时钟 | 用户授权，Codex 执行 | 草稿及复盘入口 |
+| 2026-11-25 00:27:58+08:00 | entry-4597／路由需求返修 | 0.1→0.2 待同版确认 | [需求稿](COLLABORATION_ROUTING_REQUIREMENTS.md) 逐项处理记录，本机时钟 | Codex | 需求稿入口及复盘摘要 |
+| 2026-11-25 00:04:50 +08:00 | entry-4589／路由需求候选 | 无→新增 0.1 入口 | [前置理解](COLLABORATION_ROUTING_REQUIREMENTS.md) §0；本机时钟 | Codex | 新稿入口及复盘摘要，未实施 |
+| 2026-11-24 23:57:56 +08:00 | entry-4581／需求复核 | 初评记录→补记同版复核及后续澄清 | [讨论草稿](REQUIREMENTS_STAGE_SPEC_DISCUSSION.md) §30，本机时钟 | Codex | 同步当前状态 |
+| 2026-11-24 23:44:24 +08:00 | entry-4569／需求六步 | 需求形成稿旧摘要→1.2.0及复核边界 | [形成记录](REQUIREMENTS_STAGE_SPEC_DISCUSSION.md)§29；Python本机时钟 | 用户授权；Codex维护 | 本主题条目；原分组排序保留 |
+| 2026-11-24 23:35:12 +08:00 | entry-4569／移除两份旧稿 | 撤回设计与待审需求草稿→删除 | 用户本轮明确要求，本机时钟 | 用户决定，Codex 执行 | 两份文档及引用清理，保留复盘事实 |
+| 2026-11-24 23:25:24 +08:00 | entry-4554／文档撤回与重析 | 正式设计→撤回，回到需求分析 | 用户纠正交付顺序，本机时钟 | 用户决定，Codex 整理 | 路由需求及文档状态 |
+| 2026-11-24 23:19:16 +08:00 | entry-4554／路由设计落地 | 待用户验收→正式设计 1.0 | 用户批准、本机时钟 | 用户批准，Codex 整理 | C1–C7 与验收入口 |
+| 2026-11-24 23:12:02 +08:00 | entry-4554／路由同版确认 | 待确认→待用户验收 | [复盘](COLLABORATION_ROUTING_RETROSPECTIVE.md) §14.1；本机时钟 | Codex 审核 | 复盘索引与验收入口 |
+| 2026-11-24 23:08:22 +08:00 | entry-4554／路由同版确认候选 | 0.12→0.13 | [复盘](COLLABORATION_ROUTING_RETROSPECTIVE.md) §14；本机时钟 | Codex 替代汇总 | 复盘索引与同版确认入口 |
+| 2026-11-24 22:56:47 +08:00 | entry-4545／路由独立复核 | 0.11→0.12 | [复盘](COLLABORATION_ROUTING_RETROSPECTIVE.md) §13；本机时钟 | Codex 替代汇总 | 复盘索引与复核入口 |
+| 2026-11-24 22:46:35 +08:00 | entry-4534／路由综合方案 | 0.10→0.11 | [复盘](COLLABORATION_ROUTING_RETROSPECTIVE.md) §12；本机时钟 | Codex 综合 | 复盘索引与方案入口 |
+| 2026-11-24 22:41:15 +08:00 | entry-4534／路由分析基线 | 0.9→0.10 | [复盘](COLLABORATION_ROUTING_RETROSPECTIVE.md) §11；本机时钟 | Codex 核对 | 复盘索引与分析入口 |
+| 2026-11-24 20:38:41 +08:00 | entry-4530／路由复盘 | 0.8→0.9 | [复盘](COLLABORATION_ROUTING_RETROSPECTIVE.md) §10；本机时钟 | Codex 记录 | 路由复盘索引 |
+| 2026-11-24 20:33:34 +08:00 | entry-4514／路由复盘 | 0.7→0.8 | [复盘](COLLABORATION_ROUTING_RETROSPECTIVE.md) §9；本机时钟 | Codex 记录 | 路由复盘索引 |
+| 2026-11-24 20:28:00 +08:00 | entry-4514／路由复盘 | 0.6→0.7 | [复盘](COLLABORATION_ROUTING_RETROSPECTIVE.md) §9；本机时钟 | Codex 汇总 | 路由复盘索引 |
+| 2026-11-24 20:18:00 +08:00 | entry-4514／路由复盘 | 0.5→0.6 | [复盘](COLLABORATION_ROUTING_RETROSPECTIVE.md) §8；本机时钟 | 用户提出，Codex 记录 | 路由复盘索引 |
+| 2026-11-24 20:14:46 +08:00 | entry-4502／路由复盘 | 0.4→0.5 | [复盘](COLLABORATION_ROUTING_RETROSPECTIVE.md) §7；本机时钟 | 用户要求，Codex 汇总 | 路由复盘索引 |
+| 2026-11-24 20:04:59+08:00 | entry-4502／路由复盘 | 0.3→0.4 | [复盘](COLLABORATION_ROUTING_RETROSPECTIVE.md) §6；本机时钟 | 用户要求，Codex 整理 | 路由复盘索引 |
 | 2026-11-24 19:28:26 +08:00 | DLL/MXC 六项／收尾形成入口 | 设计草稿基线→增补收尾形成入口 | [草稿第 19 节](DLL_MXC_IMPROVEMENTS_DESIGN.md#19-六项改进正式收尾形成记录)。本机时钟 | 用户确认收尾，Codex 整理 | 草稿索引 |
+| 2026-11-23 19:11:54 +08:00 | entry-4403／路由复盘 | 0.2→0.3 | [复盘](COLLABORATION_ROUTING_RETROSPECTIVE.md) §2.2；本机时钟 | 用户要求，Codex 整理 | 复盘索引与历史 |
 | 2026-11-23 19:04:22 +08:00 | entry-4392／DLL/MXC 改进设计转正 | 讨论中→已形成正式记录 | Codex 与 Grok 均确认 0.3 无问题；本机时钟 | 用户确认；DeepSeek Harness 转正 | 草稿索引状态与正式设计关联 |
+| 2026-11-23 19:03:19 +08:00 | entry-4389／路由复盘 | 0.1→0.2 | [复盘](COLLABORATION_ROUTING_RETROSPECTIVE.md) §2.1；本机时钟 | 用户要求，Codex 整理 | 复盘索引与历史 |
+| 2026-11-23 18:41:43 +08:00 | entry-4372／复盘草稿 | 无→新增复盘入口 | [复盘](COLLABORATION_ROUTING_RETROSPECTIVE.md)；本机时钟 | 用户要求，Codex 整理 | 仅草稿索引与历史 |
 | 2026-11-23 08:09:36 +08:00 | entry-4358／DLL/MXC 改进方案设计 | 无→新增讨论草稿入口 | 基于 REQ-003 1.0 写 6 项方案设计草稿；本机时钟 | 用户委托；DeepSeek Harness 起草 | 草稿索引 |
 | 2026-11-23 08:08:00 +08:00 | entry-4358／DLL/MXC 改进需求转正 | 讨论中→已形成正式记录 | 用户确认正式落地；本机时钟 | 用户确认；DeepSeek Harness 转正 | 草稿索引状态与正式规范关联 |
 | 2026-11-23 08:00:20 +08:00 | entry-4333／DLL/MXC 后续改进需求 | 无→新增讨论草稿入口 | 三方各析 2 项并交叉检视一致，形成 REQ-003 0.1 草稿；本机时钟 | 用户提出；DeepSeek Harness 汇总 | 草稿索引 |
+| 2026-11-23 00:05:10 +08:00 | entry-4328／规范澄清落地 | 讨论中→已形成正式记录 | 用户确认一致稿0.2并落地 document-management 1.6.0、requirements 1.1.1、design 1.4.1；本机时钟 | 用户确认；DeepSeek Harness 实施 | 草稿索引状态与正式规范关联 |
+| 2026-11-22 23:53:00 +08:00 | entry-4320／规范澄清草稿 | 无→新增讨论草稿入口 | 用户要求澄清三类行为必须落草稿并交两方检视；本机时钟 | 用户提出；DeepSeek Harness 起草 | 草稿索引 |
 | 2026-11-21 22:45:29 +08:00 | entry-4300／DLL 与 MXC 教训 | 复盘草稿→关联正式教训 | [调查草稿](CODEX_WINDOWS_VENV_DLL_MXC_INVESTIGATION.md) §10，本机时钟 | 用户授权，Codex 整理 | 草稿索引状态及链接 |
 | 2026-11-21 22:27:23 +08:00 | 硬编码与绝对路径排查报告 0.1 | 无→新增讨论草稿入口 | 用户要求把 entry-4278 三端排查讨论落为独立文档；本机时钟 | 用户提出；DeepSeek Harness 整理 | 草稿索引 |
 | 2026-11-21 22:11:36 +08:00 | Windows DLL 故障与 MXC 复盘 0.1 | 无→新增草稿入口 | 用户要求记录定位、测试改动和配置验证。本机时钟 | 用户提出，Codex 整理 | 草稿索引 |
