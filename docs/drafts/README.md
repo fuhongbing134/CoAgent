@@ -6,6 +6,8 @@
 
 ## 分类与收录清单
 
+模板形成记录见 [REQUIREMENTS_AND_DESIGN_TEMPLATES_DISCUSSION.md](REQUIREMENTS_AND_DESIGN_TEMPLATES_DISCUSSION.md)。
+
 | 分类 | 文档 | 状态与收录理由 |
 |---|---|---|
 | 三端终审通过 | [工作台调用流程讨论记录](workbench-call-flow/README.md) | 保留三端独立原稿、三份互审及44项处理映射；[统一稿](../architecture/WORKBENCH_CALL_FLOW.md)已形成源码静态核对层面的共识，渲染与运行验证边界见正文；不构成新增开发计划 |
@@ -14,10 +16,11 @@
 | 已形成正式记录 | [源码目录重组与宿主拆分需求](SOURCE_LAYOUT_REQUIREMENTS.md) | entry-3689，0.2 同版检视基线，正式稿见 [REQ-002 1.0](../requirements/SOURCE_LAYOUT_REQUIREMENTS.md) |
 | 讨论中 | [架构讨论系列](architecture-review/README.md)及[第二轮汇总](architecture-review/SUMMARY.md#第二轮复核汇总原判断修正及维持对照) | 三方署名分析、事实核查和修订历史整体保存；含已实现现状的观察，但改进建议尚未正式选定，不能当作官方架构或整体实施计划 |
 | 已形成复盘记录 | [协作路由故障复盘](COLLABORATION_ROUTING_RETROSPECTIVE.md) | 0.16；§14 保留旧稿删除与历史确认，§15 关联正式需求及历史候选 |
+| 讨论中 | [协作路由设计讨论稿](COLLABORATION_ROUTING_DESIGN_DISCUSSION.md) | 0.49 为形成基线，§§4.50–4.55 记录归位、返修与交接，[§4.56 首批设计简化](COLLABORATION_ROUTING_DESIGN_DISCUSSION.md#456-首批设计简化)记录取舍，[§4.57 必留能力覆盖评估](COLLABORATION_ROUTING_DESIGN_DISCUSSION.md#457-必留能力覆盖评估)记录1.0.5 同版评估，[§4.58](COLLABORATION_ROUTING_DESIGN_DISCUSSION.md#458-正式稿依赖与部署取证)记录 1.0.6 整理依据，[§§4.59–4.60](COLLABORATION_ROUTING_DESIGN_DISCUSSION.md#459-正式稿开发交接审计)记录审计及修订依据，[§4.61](COLLABORATION_ROUTING_DESIGN_DISCUSSION.md#461-开发场景静态复核)记录 1.0.8 复核，[§4.62](COLLABORATION_ROUTING_DESIGN_DISCUSSION.md#462-面向用户重写)记录 1.1.0 重写依据 |
 | 正式修订及独立审计综合完成 | [从设计到实现流程规范讨论](DESIGN_TO_IMPLEMENTATION_PROCESS_DISCUSSION.md) | entry-4647／entry-4655／entry-4665／entry-4669／entry-4687；1.0；两份七规范独立全量审计已综合，范围内问题已修订，方案见§10、审计处理见§12；真实需求案例验证待进行 |
 | 讨论中 | [硬编码与绝对路径全量排查报告](HARDCODING_INVENTORY.md) | entry-4278；0.1；三端只读清点（workbench/tests+根配置/docs+specs）合并去重，按 A—E 优先级列出位置、原因、改进与后果；改进仅为建议、尚未授权或实施 |
 | 讨论中 | [三后端skill机制与第一步方案](SKILL_MECHANISM_DISCUSSION.md) | 已汇总复盘及三端共识；通用规范1.0.0已生效；entry-2882评估暂不落地文档管理skill，保留候选、理由与重评条件，历史异议保留 |
-| 讨论中 | [STAGE_DELIVERY_SPEC_DISCUSSION.md](STAGE_DELIVERY_SPEC_DISCUSSION.md) | entry-3457；0.7；草稿待优化，用户认为当前机制仍有问题；既有讨论与完整阶段需求保留，候选未定稿，正式规则未改、行为未验证 |
+| 讨论中 | [STAGE_DELIVERY_SPEC_DISCUSSION.md](STAGE_DELIVERY_SPEC_DISCUSSION.md) | entry-3457；0.7；草稿待优化，§31 已对照现行规范，真实机制效果待证；既有讨论与完整阶段需求保留，候选未定稿，正式规则未改、行为未验证 |
 | 讨论中 | [TEST_RESTART_BASELINE.md](TEST_RESTART_BASELINE.md) | entry-3372／entry-3461；0.7仅追加正式需求后继关联；原0.5工具返修及18纯检查状态保留，待聚焦复查，进程/HTTP未运行 |
 | 讨论中 | [通用工具授权框架](TOOL_AUTHORIZATION_DESIGN.md) | 四级分类与能力目录仍为提案，未定稿、未实施，未列入当前正式开发计划 |
 | 已形成正式记录 | [BENCHMARK_RESTART_LESSONS_DISCUSSION.md](BENCHMARK_RESTART_LESSONS_DISCUSSION.md) | 0.11；两方已检视相应版本，发现项已作者修正，末次修订未另行独立复查；形成过程及本轮决定；正式教训见[../lessons/BENCHMARK_RESTART_LESSONS.md](../lessons/BENCHMARK_RESTART_LESSONS.md) |
@@ -25,7 +28,7 @@
 | 已形成正式记录 | [CODE_SPEC_SPLIT_DISCUSSION.md](CODE_SPEC_SPLIT_DISCUSSION.md) | entry-3189; 0.5; [CODE_WRITING_SPEC.md](../../specs/CODE_WRITING_SPEC.md) 1.0.1 / [CODE_REVIEW_SPEC.md](../../specs/CODE_REVIEW_SPEC.md) 2.0.0; 原落盘版独立检视无阻断，引用历史修订已自查未另行独立复查，效果未验证  本轮补历史表经两端聚焦复查无阻断，范围见治理记录§11 |
 | 已形成正式记录 | [CODEX_GIT_PROFILE.md](CODEX_GIT_PROFILE.md) | entry-3888 启动策略及验收边界 |
 | 已形成正式记录 | [CODEX_WINDOWS_VENV_DLL_MXC_INVESTIGATION.md](CODEX_WINDOWS_VENV_DLL_MXC_INVESTIGATION.md) | 保留 0.1 原始调查、本机验收及 §10 形成依据。正式教训见 [../lessons/WINDOWS_VENV_DLL_MXC_LESSONS.md](../lessons/WINDOWS_VENV_DLL_MXC_LESSONS.md) |
-| 已形成正式记录 | [COLLABORATION_ROUTING_REQUIREMENTS.md](COLLABORATION_ROUTING_REQUIREMENTS.md) | 保留 0.2 评审基线及 entry-4620 正式化记录。正式需求见 [../requirements/COLLABORATION_ROUTING_REQUIREMENTS.md](../requirements/COLLABORATION_ROUTING_REQUIREMENTS.md) |
+| 已形成正式记录 | [COLLABORATION_ROUTING_REQUIREMENTS.md](COLLABORATION_ROUTING_REQUIREMENTS.md) | 保留 0.2 评审基线及 entry-4620 正式化记录；entry-4727 用户决定及 REQ-004 1.1／1.2 修订前置记录见本文。 entry-5068 原始诉求回溯见本文。正式需求见 [../requirements/COLLABORATION_ROUTING_REQUIREMENTS.md](../requirements/COLLABORATION_ROUTING_REQUIREMENTS.md) |
 | 已形成正式记录 | [CONCURRENCY_LOAD_TEST_REQUIREMENTS.md](CONCURRENCY_LOAD_TEST_REQUIREMENTS.md) | entry-3475；0.4；保留0.2冻结基线及形成记录；当前正文见[../requirements/CONCURRENCY_LOAD_TEST_REQUIREMENTS.md](../requirements/CONCURRENCY_LOAD_TEST_REQUIREMENTS.md)1.1；未测试 |
 | 已形成正式记录 | [CONCURRENCY_VERIFICATION_DESIGN.md](CONCURRENCY_VERIFICATION_DESIGN.md) | 形成记录0.6；§15候选1.1-C1冻结，§16两方意见及综合依据；当前正文见[../design/CONCURRENCY_VERIFICATION_DESIGN.md](../design/CONCURRENCY_VERIFICATION_DESIGN.md)1.1；综合版未另复核，隔离夹具首次诊断装配失败；§22已静态修正入口及失败观察，§23已修入口协议，单请求已创建进程并确认退出，子进程在 ready 前失败（形成记录§24），退出观察返修已通过无服务检查（形成记录§25），3551-01 提前退出观察已实测并复查，stdin 字节计数返修后 3551-02 完成一次 I2 隔离握手，待独立复查（形成记录§26） |
 | 已形成正式记录 | [DESIGN_ENGINEERING_COMPLETENESS_DISCUSSION.md](DESIGN_ENGINEERING_COMPLETENESS_DISCUSSION.md) | entry-3511；形成0.2；两方候选讨论及综合处理见§8，§5候选冻结；当前规则见[../../specs/DESIGN_DECISION_RECORD_SPEC.md](../../specs/DESIGN_DECISION_RECORD_SPEC.md)1.5.0；综合版待独立复核，效果未验证 |
@@ -39,7 +42,7 @@
 | 已形成正式记录 | [规范澄清：三类行为必须落草稿](SPEC_MANDATORY_DOC_ACTIVITIES_CLARIFICATION.md) | entry-4320/4328；0.2 一致稿基线，已落地 document-management-spec 1.6.0、requirements-analysis-spec 1.1.1、design-decision-record-spec 1.4.1 |
 | 阶段报告 | [CONCURRENCY_LOAD_TEST_REPORT.md](CONCURRENCY_LOAD_TEST_REPORT.md) | 0.7 历史基线，保留新版全量复跑、收尾提示回归与当时的验证边界 |
 | 阶段报告 | [CONCURRENCY_LOAD_TEST_REPORT_R7.md](CONCURRENCY_LOAD_TEST_REPORT_R7.md) | 0.8 同版审阅基线，正文状态保留审阅时语境。正式稿见 [../verification/CONCURRENCY_LOAD_TEST_REPORT.md](../verification/CONCURRENCY_LOAD_TEST_REPORT.md) |
-| 需求待实现／未修复 | [无输入依赖却停留受阻卡片的场景](UNNECESSARY_BLOCKED_CARD_SCENARIO.md) | entry-3260；0.1；CARD-BLOCK-001；用户报告建库讨论失败后第二轮需手动给结论才结束；保留候选调用、未知项及验收方向，未复现、未修复 |
+| 需求待实现／未修复 | [无输入依赖却停留受阻卡片的场景](UNNECESSARY_BLOCKED_CARD_SCENARIO.md) | entry-3260；0.1；CARD-BLOCK-001；用户报告建库讨论失败后第二轮需手动给结论才结束；§7–§9 记录分流、隔离后端及前端四态对照，历史事件未复现、未修复 |
 | 待评估 | [Agent 规范遵从措施调研](AGENT_SPEC_COMPLIANCE_RESEARCH.md) | 43 项参考措施的资料集合，不是 43 项开发任务；个别措施已被采用不代表整份资料已进入计划 |
 | 废弃 | [abandoned/concurrency-benchmark/README.md](abandoned/concurrency-benchmark/README.md) | entry-3310旧压测文档、工具归档入口；不作为新基线、不恢复执行 |
 | 废弃 | 无独立文件的历史决定 | 放弃自动 Git 的决定保留在[正式索引的 Git 行为约束记录](../README.md)；原设计仅存于历史 feature 分支，本次不恢复或虚构文件 |
@@ -73,6 +76,71 @@ entry-3189：CODE_SPEC_SPLIT_DISCUSSION.md由讨论中转为已形成正式记�
 
 | 时间 | 版本／议题 | 原状态或决定→新状态或决定 | 原因与证据 | 提出／决定者及来源 | 影响范围 |
 |---|---|---|---|---|---|
+| 2026-11-27 23:33:02 +08:00 | entry-5124／面向用户重写 | 1.0.8→1.1.0 检视候选 | 用户要求、讨论稿 §4.62、本机时钟 | 用户提出，Codex 编写 | 重组阅读顺序、场景与图示，待两端同版检视 |
+| 2026-11-27 23:21:01 +08:00 | entry-5110／场景复核 | 1.0.7→1.0.8 | 讨论稿 §4.61、REQ-004 1.5、本机时钟 | Codex 复核 | 澄清终态与尝试边界，文档静态复核完成 |
+| 2026-11-27 23:19:18 +08:00 | entry-5110／开发交接修订 | 1.0.6→1.0.7 | 讨论稿 §§4.59–4.60、REQ-004 1.5、本机时钟 | 用户要求，Codex 修订 | 补齐工程契约与验证映射，待文档复核 |
+| 2026-11-27 23:09:08 +08:00 | entry-5099／正式设计整理 | 1.0.5→1.0.6 | 讨论稿 §4.58、REQ-004 1.5、本机时钟 | 用户授权，Codex 整理 | 明确依赖与部署取证，待双人同版检视 |
+| 2026-11-27 23:04:41 +08:00 | entry-5091／必留能力覆盖评估 | 待独立复核→收录同版评估结论 | [讨论稿 §4.57](COLLABORATION_ROUTING_DESIGN_DISCUSSION.md#457-必留能力覆盖评估)；本机时钟 | Codex 同步 | 草稿索引及后续验收导航 |
+| 2026-11-27 22:50:00 +08:00 | entry-5077／首批设计简化 | 设计引用 1.0.4→1.0.5 | 讨论稿 §4.56、本机时钟 | Codex 同步 | 更新设计证据，待独立复核 |
+| 2026-11-27 22:39:36+08:00 | entry-5068／路由需求回溯 | 已收录→同步回溯入口摘要 | [需求形成记录](COLLABORATION_ROUTING_REQUIREMENTS.md)，Python 本机时钟 | Codex 汇总 | 草稿索引 |
+| 2026-11-27 22:20:32 +08:00 | entry-5048／同版复核建议 | 1.0.3→1.0.4 | 讨论稿 §4.55 与本机时钟 | Codex 核对 | 同步澄清，待三方同版复核 |
+| 2026-11-27 22:15:26 +08:00 | entry-5048／实施前取证 | 草稿索引增加 §4.54，设计引用升至 1.0.3 | 讨论稿 §4.54 及本机时钟 | Codex 综合 | 证据综合与同版复核入口 |
+| 2026-11-27 22:03:40 +08:00 | entry-5037／编码交接 | 草稿索引增加 §4.53 入口 | 设计 1.0.2、交接草稿及本机时钟 | Codex 整理 | 交接待复核 |
+| 2026-11-27 22:01:06 +08:00 | entry-5037／持锁重读 | 正式设计引用 1.0.1→1.0.2 | 讨论稿 §4.49、§4.52、Grok 1.0.1 复查及本机时钟 | Codex 采纳并整理 | 停止仲裁步骤澄清，统一状态为设计中 |
+| 2026-11-27 21:49:38 +08:00 | entry-5020／卡片投影核对 | 静态分流摘要→关联隔离后端与前端对照 | [场景草稿 §9](UNNECESSARY_BLOCKED_CARD_SCENARIO.md#9-前端夹具启动与卡片投影)、本机时钟 | Codex | 草稿索引摘要，历史事件仍未复现 |
+| 2026-11-27 21:48:18 +08:00 | entry-5020／同版复核返修 | 草稿索引→关联返修 | Grok 1.0 复核、REQ-004 1.5、讨论稿 §§4.42、4.47–4.49；本机时钟 | Codex 采纳并整理 | 接纳、停止恢复、共享写与 A6/A7 文档边界 |
+| 2026-11-27 21:43:43 +08:00 | entry-5020／补充设计对照 | 原摘要→同步对照结果 | 两份草稿新增小节；本机时钟 | Codex | 阶段交付与受阻卡片仍待验证 |
+| 2026-11-27 21:43:17 +08:00 | entry-5020／限制性契约归位 | 无→正式设计 1.0 | entry-5004 负责人审核、REQ-004 1.5 与讨论稿 0.49；本机时钟 | Codex 按用户授权整理 | 设计契约、实施前核对与运行验收边界 |
+| 2026-11-27 21:35:27 +08:00 | entry-5004／停止仲裁实施条件 | 草稿 0.48→0.49 | Grok 0.48 同版复核与负责人裁定；本机时钟 | Codex 收口 | 共同对象、锁顺序、入口覆盖、崩溃处置与验收边界，状态为设计中 |
+| 2026-11-27 21:30:47 +08:00 | entry-5004／同版复核返修 | 草稿 0.47→0.48 | Grok 0.47 回执与负责人裁定；本机时钟 | Codex 修订 | 现行条款、同身份恢复、生效限制与停止仲裁候选 |
+| 2026-11-27 21:17:47 +08:00 | entry-5004／独立复核综合 | 草稿 0.46→0.47 | Grok、DeepSeek Harness 回执；本机时钟 | Codex 综合 | 首次接纳与归档、并行与逐路输出，状态为设计中 |
+| 2026-11-27 21:09:36 +08:00 | entry-4986／授权截止端点 | 草稿 0.45→0.46 | 用户更新 d17779af；本机时钟 | 用户裁决，Codex 记录 | U1/A4 到期收尾及设计引用 |
+| 2026-11-27 21:07:04 +08:00 | entry-4986／同版复核综合 | 0.44→0.45（草稿） | [§4.45](COLLABORATION_ROUTING_DESIGN_DISCUSSION.md#445-同版复核综合)，本机时钟 | Codex 同步 | 更新草稿版本及审查范围 |
+| 2026-11-27 20:59:14 +08:00 | entry-4986／首次接纳与取证条件 | 0.43→0.44（草稿） | [§4.44](COLLABORATION_ROUTING_DESIGN_DISCUSSION.md#444-首次接纳与后续取证条件)，本机时钟 | Codex 同步 | 草稿入口版本及审查范围 |
+| 2026-11-27 20:55:21 +08:00 | entry-4986／恢复与授权截止复核 | 0.42→0.43（草稿） | [§4.43](COLLABORATION_ROUTING_DESIGN_DISCUSSION.md#443-恢复与授权截止复核综合)，本机时钟 | Codex 同步 | 草稿入口版本及端点待决范围 |
+| 2026-11-27 20:48:13 +08:00 | entry-4986／重试存储与首次接纳 | 0.41→0.42（草稿） | [§4.42](COLLABORATION_ROUTING_DESIGN_DISCUSSION.md#442-重试存储与首次接纳资格)，本机时钟 | Codex 同步 | 草稿入口版本及复核范围 |
+| 2026-11-27 20:44:23 +08:00 | entry-4986／失败恢复与授权截止 | 0.40→0.41（草稿） | [§4.41](COLLABORATION_ROUTING_DESIGN_DISCUSSION.md#441-失败恢复与授权截止)，本机时钟 | Codex 同步 | 草稿入口版本及复核范围 |
+| 2026-11-27 20:34:32 +08:00 | entry-4968／旧派发接纳边界 | 0.39→0.40（草稿） | [§4.40](COLLABORATION_ROUTING_DESIGN_DISCUSSION.md#440-旧派发接纳边界)，本机时钟 | Codex 同步 | 草稿入口版本及验证边界 |
+| 2026-11-27 20:29:34 +08:00 | entry-4968／重试名额与接纳证据 | 0.38→0.39（草稿） | 两份独立复核与负责人回应，见 [§4.39](COLLABORATION_ROUTING_DESIGN_DISCUSSION.md#439-重试名额与接纳证据)，本机时钟 | Codex 综合 | 存储首选条件、U3/A3/A5 对照与状态证据引用，运行待验证 |
+| 2026-11-27 20:09:34 +08:00 | entry-4960／提交与执行边界综合 | 0.37→0.38（草稿） | DeepSeek Harness、Grok 独立回执与 Codex 逐项处理，见[讨论稿 §4.38](COLLABORATION_ROUTING_DESIGN_DISCUSSION.md#438-提交歧义实际唤醒与外部生效038综合复核) | 工作台授权，Codex 综合 | U3/A3/A5 加授权到期判据，运行验收待验证 |
+| 2026-11-27 19:56:46 +08:00 | entry-4942／恢复裁决设计 | 0.36→0.37 | REQ-004 1.4、隔离夹具回执、[讨论稿](COLLABORATION_ROUTING_DESIGN_DISCUSSION.md) §4.37（本机时钟） | Codex 设计建议 | 恢复取证、预留事务和验证矩阵，产品待验 |
+| 2026-11-27 19:53:25 +08:00 | entry-4942／通道证据综合 | 0.35→0.36 | 两份只读回执与 [讨论稿](COLLABORATION_ROUTING_DESIGN_DISCUSSION.md) §4.36（本机时钟） | Codex 综合建议 | 旧记录来源、通道能力与最小验证，产品待验 |
+| 2026-11-27 19:45:55 +08:00 | entry-4942／方案差距综合 | 0.34→0.35 | 三份只读回执及 [讨论稿](COLLABORATION_ROUTING_DESIGN_DISCUSSION.md) §4.35，本机时钟 | Codex 综合建议 | 退出、文件、副作用及退避候选，产品待验 |
+| 2026-11-27 19:17:49 +08:00 | entry-4924／定向复核综合 | 0.33→0.34 | 两份有效回执与 [讨论稿](COLLABORATION_ROUTING_DESIGN_DISCUSSION.md) §4.34 | Codex | 诊断缓存、重启和文件证据边界，产品待验 |
+| 2026-11-27 19:13:22 +08:00 | entry-4924／重试证据综合 | 0.32→0.33 | 两份只读回执及 [讨论稿](COLLABORATION_ROUTING_DESIGN_DISCUSSION.md) §4.33 | Codex 综合 | U3/A1–A8 验证矩阵，产品待验 |
+| 2026-11-27 19:09:00 +08:00 | entry-4924／路由未完成事项综合 | 0.31→0.32 | 三方独立回执及 [讨论稿](COLLABORATION_ROUTING_DESIGN_DISCUSSION.md) §4.32 | Codex 综合 | 重试取证、验收和历史缺口；技术候选待查证 |
+| 2026-11-27 19:00:03 +08:00 | entry-4920／用户确认无回退 | 0.30→0.31 | [讨论稿](COLLABORATION_ROUTING_DESIGN_DISCUSSION.md) §4.31 及用户确认 | 用户决定，Codex 记录 | 同步 REQ-004 1.4，产品待验 |
+| 2026-11-27 18:54:56 +08:00 | entry-4913／政策综合 | 0.29→0.30 | 用户原文及三方独立回执，见[讨论稿](COLLABORATION_ROUTING_DESIGN_DISCUSSION.md) §4.30 | 用户决定期限，Codex 综合 | 无回退与重试条件待确认 |
+| 2026-11-27 08:17:12 +08:00 | entry-4899／停止与唤醒入口复核 | 路由设计草稿 0.28→0.29 | Grok 独立源码复核、REQ-004 1.2 R5/A5 与[讨论稿](COLLABORATION_ROUTING_DESIGN_DISCUSSION.md#429-停止与唤醒入口的独立复核) §4.29 | Grok 复核；Codex 综合 | 补齐入口、锁序与失败回报；产品待验 |
+| 2026-11-27 08:09:46 +08:00 | entry-4899／停止与唤醒裁决比较 | 路由设计草稿 0.27→0.28 | REQ-004 1.2、源码静态核对与[讨论稿](COLLABORATION_ROUTING_DESIGN_DISCUSSION.md) §4.28 | Codex 综合 | 串行条件、锁序和崩溃证据；产品待验 |
+| 2026-11-27 08:08:31 +08:00 | entry-4899／接纳后停止与重启复核 | 路由设计草稿 0.26→0.27 | Grok 独立回执及[讨论稿](COLLABORATION_ROUTING_DESIGN_DISCUSSION.md) §4.27 | Codex 综合 | 证据边界、取消补投候选与 A5 待验时序 |
+| 2026-11-27 08:02:43 +08:00 | entry-4891／恢复尝试名额复核 | 路由设计草稿 0.25→0.26 | DeepSeek Harness、Grok 独立回执及[讨论稿](COLLABORATION_ROUTING_DESIGN_DISCUSSION.md) §4.26 | Codex 综合 | 记录计数点、异议和验证缺口 |
+| 2026-11-26 19:16:02 +08:00 | entry-4878／恢复预留与接纳查证 | 路由设计草稿 0.24→0.25 | REQ-004 1.2、源码静态核对与[讨论稿](COLLABORATION_ROUTING_DESIGN_DISCUSSION.md) §4.25 | Codex | 同连接事务、接纳拦截、重放及扣账；产品待验 |
+| 2026-11-26 19:14:06 +08:00 | entry-4878／恢复与截止竞态复核 | 路由设计草稿 0.23→0.24 | Grok 独立复核与[讨论稿](COLLABORATION_ROUTING_DESIGN_DISCUSSION.md) §4.24 | Codex 综合 | 证据归属、预留去重与 A4 时序 |
+| 2026-11-26 19:07:10 +08:00 | entry-4878／恢复证据与截止验收 | 路由设计草稿 0.22→0.23 | [讨论稿](COLLABORATION_ROUTING_DESIGN_DISCUSSION.md) §4.23 与执行跟踪源码 | Codex 候选 | 旧记录兼容、迟到证据与 A4 判据 |
+| 2026-11-26 19:02:43 +08:00 | entry-4865／U3 与 U4 证据复查 | 路由设计草稿 0.21→0.22 | [讨论稿](COLLABORATION_ROUTING_DESIGN_DISCUSSION.md) §4.22 与既有验证报告 | Codex 核对 | 通道局部实测与历史覆盖边界 |
+| 2026-11-26 19:01:07 +08:00 | entry-4865／暂存证据复核 | 路由设计草稿 0.20→0.21 | Grok 复核与时序推演，[讨论稿](COLLABORATION_ROUTING_DESIGN_DISCUSSION.md) §4.21 | Codex 综合 | 上界证明、到期仲裁及缺证策略 |
+| 2026-11-26 18:56:47 +08:00 | entry-4865／跨截止提交复核 | 路由设计草稿 0.19→0.20 | Grok 复核与事务路径核对，[讨论稿](COLLABORATION_ROUTING_DESIGN_DISCUSSION.md) §4.20 | Codex 综合 | 严格截止证据及缺证处置 |
+| 2026-11-26 18:53:34 +08:00 | entry-4865／严格截止与恢复证据 | 路由设计草稿 0.18→0.19 | Grok 复核、REQ-004 1.2 及只读源码核对，[讨论稿](COLLABORATION_ROUTING_DESIGN_DISCUSSION.md) §4.19 | Codex 综合 | 截止共识、跨截止提交条件与重试证据缺口 |
+| 2026-11-26 18:47:14 +08:00 | entry-4852／到期仲裁与回退计数复判 | 路由设计草稿 0.17→0.18 | Grok 与 DeepSeek Harness 专项交接及 REQ-004 1.2，[讨论稿](COLLABORATION_ROUTING_DESIGN_DISCUSSION.md) §4.18，本机时钟 | Codex 综合 | 截止仲裁候选、回退扣账、策略待决及验收缺口 |
+| 2026-11-26 18:39:13 +08:00 | entry-4852／U1/U2专项复核综合 | 路由设计草稿 0.16→0.17 | Grok 补查、DeepSeek Harness 复核及 REQ-004 1.2，[讨论稿](COLLABORATION_ROUTING_DESIGN_DISCUSSION.md) §4.17，本机时钟 | Codex 综合 | 默认等待、回退安全条件、待决计数与验收缺口 |
+| 2026-11-26 08:13:20 +08:00 | entry-4824／0.15复核综合 | 路由设计草稿 0.15→0.16 | Grok、DeepSeek Harness 同版复核及 REQ-004 1.2，本机时钟 | Codex 综合 | §4.16 停止承诺、单一发布记录及验收缺口 |
+| 2026-11-26 08:06:40 +08:00 | entry-4824／0.14复核综合 | 路由设计草稿 0.14→0.15 | Grok、DeepSeek Harness 同版复核及 REQ-004 1.2，本机时钟 | Codex 综合 | §4.15 创建仲裁、发布恢复、版本保留及验收缺口 |
+| 2026-11-26 08:02:49 +08:00 | entry-4824／0.13复核综合 | 路由设计草稿 0.13→0.14 | Grok 启动补查、DeepSeek Harness 发布复核、REQ-004 1.2、本机时钟 | Codex 综合 | §4.14 启动证据、不可变版本发布及验收缺口 |
+| 2026-11-26 07:56:46 +08:00 | entry-4824／0.12复核综合 | 路由设计草稿 0.12→0.13 | 两份0.12专项复核、REQ-004 1.2、启动回调及发布反例，本机时钟 | Codex 综合 | §4.13 取消、版本可见性及验收缺口 |
+| 2026-11-26 07:49:28 +08:00 | entry-4824／0.11复核综合 | 路由设计草稿 0.11→0.12 | 两份0.11复核、REQ-004 1.2及反例推演，本机时钟 | Codex 综合 | §4.12 停止、回写、依赖版本及验证缺口 |
+| 2026-11-26 00:01:27 +08:00 | entry-4806／0.10复核综合 | 路由设计草稿 0.10→0.11 | 两份0.10回应、REQ-004 1.2、停止事务与反例推演；本机时钟 | Codex 综合 | §4.11 接受、技术异议、授权建议更正与验证缺口 |
+| 2026-11-25 23:55:45 +08:00 | entry-4806／0.9复核综合 | 路由设计草稿 0.9→0.10 | 两份0.9复核、REQ-004 1.2、源码及本机时钟 | Codex 综合 | §4.10 接纳、领取、回写和待决范围 |
+| 2026-11-25 23:50:46 +08:00 | entry-4806／0.8复核综合 | 路由设计草稿 0.8→0.9 | 两份0.8复核、REQ-004 1.2、源码核对及本机时钟 | Codex 综合 | §4.9 接受条件、异议及待验证项 |
+| 2026-11-25 23:41:13 +08:00 | 第四轮设计综合 | 路由设计草稿 0.7→0.8 | Grok、DeepSeek Harness 第四轮交接、REQ-004 1.2、本机时钟 | Codex 综合 | §4.8 恢复事务、批次接入与 A1–A8 验证缺口 |
+| 2026-11-25 23:09:18 +08:00 | entry-4770／第三轮设计综合 | 路由设计草稿 0.6→0.7 | Grok、DeepSeek Harness 专项交接、REQ-004 1.2、本机时钟 | Codex 综合 | §4.7 与索引，预留扣账取舍、接受条件和验收缺口 |
+| 2026-11-25 23:04:01 +08:00 | entry-4770／第二轮设计综合 | 路由设计草稿 0.5→0.6 | 三份专项交接、REQ-004 1.2、本机时钟 | Codex 综合 | §4.6 与索引，记录候选、异议和验收缺口 |
+| 2026-11-25 22:47:36 +08:00 | entry-4770／首轮设计综合 | 路由设计草稿 0.4→0.5 | 本轮三份独立交接与 REQ-004 1.2；本机时钟 | Codex 综合 | §4.5 及索引，记录意见和拟验收断言 |
+| 2026-11-25 22:37:34 +08:00 | entry-4763／三方调查综合 | 路由设计草稿 0.3→0.4 | entry-4755 两份调查、entry-4763 Grok 重试交接与公开资料复核；本机时钟 | Codex 综合 | 记录期限及失败恢复候选、待决项与证据缺口 |
+| 2026-11-25 22:19:18 +08:00 | entry-4750／预算修订 | REQ-004 1.1→1.2、设计草稿 0.2→0.3 | entry-4733 用户更正；本机时钟为落盘时间 | 用户决定；Codex 记录 | 每次重试计入本轮调用预算；期限覆盖及回退权限仍待决定，产品验收待验证 |
+| 2026-11-25 21:36:47 +08:00 | entry-4727／路由设计讨论稿 0.2 | 0.1→0.2；增加 U1/U2 用户决定、行业公开资料比较、部分改动检查/回退候选及未决边界 | [设计讨论稿](COLLABORATION_ROUTING_DESIGN_DISCUSSION.md)§4；REQ-004／1.1；Grok 调研；系统UTC时钟换算为 +08:00 | 用户决定部分规则；Codex 综合 | 仅更新待验收草稿及索引；未形成回退授权规则或产品实施授权 |
+| 2026-11-25 21:27:51 +08:00 | entry-4727／路由需求前置记录 | entry-4620 正式化记录→追加 U1/U2 用户决定及 REQ-004 1.1 修订前置依据 | 用户原文；[需求形成记录](COLLABORATION_ROUTING_REQUIREMENTS.md)；本机时钟 | 用户决定；Codex 记录 | 更新本主题摘要，正式需求及需求索引已同步 |
+| 2026-11-25 21:10:08 +08:00 | 路由设计讨论稿／0.1 | 无→新增待用户验收的候选设计稿及索引入口 | [设计讨论稿](COLLABORATION_ROUTING_DESIGN_DISCUSSION.md)；系统UTC时钟换算为 +08:00 | 三方讨论；Codex整理 | 仅新增草稿与草稿索引；正式设计、产品代码和实现授权未变 |
 | 2026-11-25 20:34:34 +08:00 | entry-4687／独立审计综合返修 | 0.9待审计→1.0两份全量审计已综合，范围内问题修订 | [讨论记录](DESIGN_TO_IMPLEMENTATION_PROCESS_DISCUSSION.md)§12；DeepSeek Harness、Grok独立回执；系统UTC时钟换算为 +08:00 | Codex综合；依用户原授权处理 | task-execution 1.2.1、requirements 1.2.3、document-management 1.6.1；行为效果待真实需求案例验证 |
 | 2026-11-25 20:18:52 +08:00 | entry-4687／正式修订实施 | 0.8实施中→0.9正式规范、索引及tracking模板已落盘，待独立审计 | [讨论记录](DESIGN_TO_IMPLEMENTATION_PROCESS_DISCUSSION.md)§10—§11；实际修改及 `git diff --check`；PowerShell本机时钟 | 用户授权；Codex实施 | task-execution 1.2.0、requirements 1.2.2、design 1.5.1；独立全量审计和效果验证待完成 |
 | 2026-11-25 20:11:54 +08:00 | entry-4687／正式修订授权与方案 | 0.7讨论中、正式规范未授权→0.8记录用户授权及边界审计/实施方案 | 用户原文及既有决策；[讨论记录](DESIGN_TO_IMPLEMENTATION_PROCESS_DISCUSSION.md)§10；PowerShell本机时钟 | 用户授权；Codex整理 | 先更新讨论草稿与索引，再实施相关规范及tracking模板；七份规范独立全量审计安排在实施后；其他已有改动保留 |
